@@ -3,8 +3,26 @@
 import Image from "next/image";
 import { useActionState, useState } from "react";
 import { COLOR_OPTIONS, DESIGN_OPTIONS, mockupKey } from "@/lib/options";
+import { getVisitorId, hasVotedLocally, markVotedLocally } from "@/lib/fingerprint";
+import { DUPLICATE_VOTE_MESSAGE } from "@/lib/messages";
 import type { Mockup } from "@/lib/mockups";
 import { submitVote, type VoteState } from "./actions";
+
+async function vote(prev: VoteState, formData: FormData): Promise<VoteState> {
+  if (hasVotedLocally()) {
+    return { status: "error", message: DUPLICATE_VOTE_MESSAGE, alreadyVoted: true };
+  }
+
+  try {
+    formData.set("visitorId", await getVisitorId());
+  } catch {
+    return { status: "error", message: "Não foi possível identificar o dispositivo. Recarrega a página." };
+  }
+
+  const result = await submitVote(prev, formData);
+  if (result.status === "success" || result.alreadyVoted) markVotedLocally();
+  return result;
+}
 
 /** Silhueta usada enquanto não existe mockup para a combinação. */
 function SweatSilhouette({ hex }: { hex: string }) {
@@ -25,7 +43,7 @@ function SweatSilhouette({ hex }: { hex: string }) {
 export default function VoteForm({ mockups }: { mockups: Record<string, Mockup> }) {
   const [colorId, setColorId] = useState<string | null>(null);
   const [designId, setDesignId] = useState<string | null>(null);
-  const [state, formAction, pending] = useActionState<VoteState, FormData>(submitVote, {
+  const [state, formAction, pending] = useActionState<VoteState, FormData>(vote, {
     status: "idle",
   });
 
@@ -61,7 +79,13 @@ export default function VoteForm({ mockups }: { mockups: Record<string, Mockup> 
 
   return (
     <main className="flex flex-1 items-center justify-center px-6 py-12">
-      <form action={formAction} className="flex w-full max-w-4xl animate-rise flex-col gap-8">
+      <form
+        action={formAction}
+        // Gera o visitor_id logo na primeira interação, para a submissão não ter de esperar.
+        onPointerDown={() => void getVisitorId().catch(() => {})}
+        onFocus={() => void getVisitorId().catch(() => {})}
+        className="flex w-full max-w-4xl animate-rise flex-col gap-8"
+      >
         <input type="hidden" name="colorId" value={colorId ?? ""} />
         <input type="hidden" name="designId" value={designId ?? ""} />
 
@@ -74,7 +98,7 @@ export default function VoteForm({ mockups }: { mockups: Record<string, Mockup> 
             <span className="-mr-[0.4em]">ISEP</span>
             <span aria-hidden className="h-px w-10 bg-gradient-to-l from-transparent to-accent-light" />
           </p>
-          <p className="mt-5 text-sm text-muted">Escolhe a cor e o design da sweat do curso. Sem conta, sem login.</p>
+          <p className="mt-5 text-sm text-muted">Escolhe a cor e o design da sweat de curso.</p>
         </header>
 
         <div className="grid items-center gap-8 md:grid-cols-2">

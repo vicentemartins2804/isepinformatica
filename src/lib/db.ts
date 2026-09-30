@@ -11,3 +11,17 @@ export function getSql() {
   }
   return client;
 }
+
+type Vote = { visitorId: string; colorId: string; designId: string };
+
+/** Regista o voto. Devolve `false` se este `visitorId` já tinha votado. */
+export async function insertVote(vote: Vote): Promise<boolean> {
+  const sql = getSql();
+  const inserted = await sql`
+    INSERT INTO votes (visitor_id, color_id, design_id)
+    VALUES (${vote.visitorId}, ${vote.colorId}, ${vote.designId})
+    ON CONFLICT (visitor_id) DO NOTHING
+    RETURNING id
+  `;
+  return inserted.length > 0;
+}
