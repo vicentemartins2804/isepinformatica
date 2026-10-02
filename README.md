@@ -31,10 +31,24 @@ Abre http://localhost:3000.
 
 ## Painel de administração (`/admincp`)
 
+- **Resultados:** total de votos, votos e percentagem por cor e por design, a combinação mais votada e a tabela com todas as combinações.
+- **Exportar Dados:** descarrega um CSV com todos os votos. Usa o separador `;` e codificação UTF-8 com BOM, para abrir bem no Excel em português.
+- **Horário da votação:** define a abertura (opcional) e o fecho, em hora de Lisboa. Sem fecho definido, não há votação aberta. Antes da abertura, a página mostra "A votação ainda não abriu"; a partir do fecho, mostra "A votação já terminou". Fora do horário, a base de dados recusa novos votos (política de RLS).
 - Login com o username e a password da conta única.
 - Mudar a password: termina as sessões noutros dispositivos.
 - Terminar sessão em todos os dispositivos.
 - Registo de autenticação: logins bem-sucedidos e falhados, logouts e mudanças de password, com data, IP e browser.
+
+### Consultas diretas à base de dados
+
+No SQL Editor do Neon, com a role dona:
+
+```sql
+SELECT * FROM votos_por_cor;
+SELECT * FROM votos_por_design;
+SELECT * FROM votos_por_combinacao;   -- a primeira linha é a mais votada
+SELECT votacao_inicio(), votacao_prazo(), votacao_aberta();
+```
 
 ## Mockups
 

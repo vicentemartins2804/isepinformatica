@@ -1,4 +1,4 @@
-import { getResults } from "@/lib/db";
+import { getDashboard } from "@/lib/db";
 import { getSession } from "@/lib/session";
 
 export async function GET() {
@@ -7,7 +7,7 @@ export async function GET() {
   }
 
   try {
-    return Response.json({ results: await getResults() });
+    return Response.json(await getDashboard());
   } catch (err) {
     console.error("Erro ao ler resultados:", err);
     return Response.json({ error: "Não foi possível ler os resultados." }, { status: 500 });

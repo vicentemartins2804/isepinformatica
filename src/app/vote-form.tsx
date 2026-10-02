@@ -1,12 +1,13 @@
 "use client";
 
 import Image from "next/image";
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { COLOR_OPTIONS, DESIGN_OPTIONS, mockupKey } from "@/lib/options";
 import { getVisitorId, hasVotedLocally, markVotedLocally } from "@/lib/fingerprint";
 import { DUPLICATE_VOTE_MESSAGE } from "@/lib/messages";
 import type { Mockup } from "@/lib/mockups";
 import { submitVote, type VoteState } from "./actions";
+import VotingModal from "./voting-modal";
 
 async function vote(prev: VoteState, formData: FormData): Promise<VoteState> {
   if (hasVotedLocally()) {
@@ -40,12 +41,68 @@ function SweatSilhouette({ hex }: { hex: string }) {
   );
 }
 
-export default function VoteForm({ mockups }: { mockups: Record<string, Mockup> }) {
+// Maior atraso aceite por setTimeout (~24,8 dias); acima disso o timer dispararia logo.
+const MAX_TIMEOUT_MS = 2 ** 31 - 1;
+
+/** Estado da votação no momento do pedido: sem horário, por abrir, aberta ou já terminada. */
+export type VotingPhase = "none" | "upcoming" | "open" | "closed";
+
+type VoteFormProps = {
+  mockups: Record<string, Mockup>;
+  phase: VotingPhase;
+  /** Início programado (ISO), ou null se a votação abre logo. */
+  start: string | null;
+  /** Prazo da votação (ISO), ou null se não houver data de fecho. */
+  deadline: string | null;
+  /** Prazo já formatado em hora de Lisboa, para mostrar ao estudante. */
+  deadlineLabel: string | null;
+};
+
+export default function VoteForm({ mockups, phase, start, deadline, deadlineLabel }: VoteFormProps) {
   const [colorId, setColorId] = useState<string | null>(null);
   const [designId, setDesignId] = useState<string | null>(null);
+  const [introDismissed, setIntroDismissed] = useState(false);
+  // Fase atual: avança sozinha de "por abrir" para "aberta" e de "aberta" para "terminada".
+  const [livePhase, setLivePhase] = useState<VotingPhase>(phase);
   const [state, formAction, pending] = useActionState<VoteState, FormData>(vote, {
     status: "idle",
   });
+
+  // Muda de fase quando chega a hora de abertura ou de fecho com a página aberta.
+  useEffect(() => {
+    const boundary = livePhase === "upcoming" ? start : livePhase === "open" ? deadline : null;
+    if (!boundary) return;
+    const next: VotingPhase = livePhase === "upcoming" ? "open" : "closed";
+    const remaining = new Date(boundary).getTime() - Date.now();
+    if (remaining > MAX_TIMEOUT_MS) return;
+    const timer = setTimeout(() => setLivePhase(next), Math.max(remaining, 0));
+    return () => clearTimeout(timer);
+  }, [livePhase, start, deadline]);
+
+  // Sem votação a decorrer: o formulário não aparece, só a popup.
+  const closed = livePhase !== "open" || state.closed === true;
+
+  // Popups antes da votação: votação por abrir, convite para avançar, ou sem votação ativa
+  // (sem horário definido ou depois do fecho, que mostram a mesma mensagem).
+  let modal: React.ReactNode = null;
+  if (livePhase === "upcoming") {
+    modal = <VotingModal title="A votação ainda não abriu" />;
+  } else if (closed) {
+    modal = (
+      <VotingModal title="Não há nenhuma votação aberta">
+        De momento não está a decorrer nenhuma votação. Volta mais tarde.
+      </VotingModal>
+    );
+  } else if (!introDismissed) {
+    modal = (
+      <VotingModal
+        title="A votação está aberta"
+        action={{ label: "Avançar para a votação", onClick: () => setIntroDismissed(true) }}
+      >
+        Escolhe a cor e o design da sweat do curso.
+      </VotingModal>
+    );
+  }
 
   const missing: string[] = [];
   if (!colorId) missing.push("uma cor");
@@ -77,8 +134,15 @@ export default function VoteForm({ mockups }: { mockups: Record<string, Mockup> 
     );
   }
 
+  // Sem votação aberta (sem horário, por abrir ou terminada): só a popup, sem o formulário por trás.
+  if (closed) {
+    return <main className="flex-1">{modal}</main>;
+  }
+
   return (
-    <main className="flex flex-1 items-center justify-center px-6 py-12">
+    <>
+    {modal}
+    <main inert={modal !== null} className="flex flex-1 items-center justify-center px-6 py-12">
       <form
         action={formAction}
         // Gera o visitor_id logo na primeira interação, para a submissão não ter de esperar.
@@ -99,6 +163,11 @@ export default function VoteForm({ mockups }: { mockups: Record<string, Mockup> 
             <span aria-hidden className="h-px w-10 bg-gradient-to-l from-transparent to-accent-light" />
           </p>
           <p className="mt-5 text-sm text-muted">Escolhe a cor e o design da sweat de curso.</p>
+          {deadlineLabel && (
+            <p className="mt-1 text-xs text-muted">
+              Votação aberta até <span className="font-medium text-foreground">{deadlineLabel}</span>.
+            </p>
+          )}
         </header>
 
         <div className="grid items-center gap-8 md:grid-cols-2">
@@ -204,5 +273,6 @@ export default function VoteForm({ mockups }: { mockups: Record<string, Mockup> 
         </div>
       </form>
     </main>
+    </>
   );
 }

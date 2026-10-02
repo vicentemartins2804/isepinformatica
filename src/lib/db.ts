@@ -21,27 +21,72 @@ export const getSql = lazyClient("DATABASE_URL");
 /** Role `voto_anonimo`: só pode inserir votos (RLS, US07). */
 const getVoterSql = lazyClient("DATABASE_URL_VOTANTE");
 
-/** Código Postgres de violação de unicidade. */
+/** Códigos Postgres: violação de unicidade e violação de RLS (votação encerrada). */
 const UNIQUE_VIOLATION = "23505";
+const INSUFFICIENT_PRIVILEGE = "42501";
 
 type Vote = { visitorId: string; colorId: string; designId: string };
+export type InsertVoteResult = "ok" | "duplicate" | "closed";
 
 /**
- * Regista o voto. Devolve `false` se este `visitorId` já tinha votado, ou seja, se a
- * base de dados recusou a gravação com o erro 23505 (restrição UNIQUE em visitor_id).
+ * Regista o voto com a role votante. A base de dados recusa-o com o erro 23505 se o
+ * dispositivo já votou (UNIQUE em visitor_id) ou com 42501 se o prazo já passou (RLS).
  */
-export async function insertVote(vote: Vote): Promise<boolean> {
+export async function insertVote(vote: Vote): Promise<InsertVoteResult> {
   // Sem RETURNING: a role votante não tem permissão de leitura sobre `votos`.
   try {
     await getVoterSql()`
       INSERT INTO votos (visitor_id, cor, design)
       VALUES (${vote.visitorId}, ${vote.colorId}, ${vote.designId})
     `;
-    return true;
+    return "ok";
   } catch (err) {
-    if ((err as { code?: unknown } | null)?.code === UNIQUE_VIOLATION) return false;
+    const code = (err as { code?: unknown } | null)?.code;
+    if (code === UNIQUE_VIOLATION) return "duplicate";
+    if (code === INSUFFICIENT_PRIVILEGE) return "closed";
     throw err;
   }
+}
+
+export type VotingStatus = {
+  /** Início programado, ou `null` (abre logo que o fim está definido). */
+  start: Date | null;
+  /** Fim (prazo), ou `null` se não houver votação marcada. */
+  deadline: Date | null;
+  open: boolean;
+  /** Há início programado e ainda não chegou. */
+  upcoming: boolean;
+};
+
+/** Horário e estado da votação (US04), com a mesma regra e o mesmo relógio que a política de RLS. */
+export async function getVotingStatus(): Promise<VotingStatus> {
+  // Lido através das funções SECURITY DEFINER, com a role votante.
+  const rows = await getVoterSql()`
+    SELECT votacao_inicio() AS inicio,
+           votacao_prazo() AS prazo,
+           votacao_aberta() AS aberta,
+           COALESCE(now() < votacao_inicio(), false) AS por_abrir
+  `;
+  const { inicio, prazo, aberta, por_abrir } = rows[0];
+  return {
+    start: inicio ? new Date(inicio) : null,
+    deadline: prazo ? new Date(prazo) : null,
+    open: aberta,
+    upcoming: por_abrir,
+  };
+}
+
+/**
+ * Define o horário a partir de datas/horas locais de Lisboa ("2026-10-15T23:59").
+ * `start` pode ser `null` (abre logo); passar ambos a `null` remove a votação.
+ */
+export async function setVotingSchedule(start: string | null, end: string | null) {
+  await getSql()`
+    UPDATE configuracao
+    SET inicio_votacao = (${start}::timestamp AT TIME ZONE 'Europe/Lisbon'),
+        prazo_votacao = (${end}::timestamp AT TIME ZONE 'Europe/Lisbon')
+    WHERE id = 1
+  `;
 }
 
 export type AdminRecord = { username: string; passwordHash: string; sessionVersion: number };
@@ -95,16 +140,42 @@ export async function getAuthLogs(limit = 50): Promise<AuthLogRow[]> {
   }));
 }
 
-export type ResultRow = { designId: string; colorId: string; votes: number };
+export type Tally = { id: string; votes: number; percentage: number };
+export type ComboTally = { colorId: string; designId: string; votes: number; percentage: number };
+export type Dashboard = { total: number; byColor: Tally[]; byDesign: Tally[]; byCombination: ComboTally[] };
 
-/** Votos acumulados por combinação de design e cor. */
-export async function getResults(): Promise<ResultRow[]> {
+/** KPIs da US08, lidos das vistas votos_por_cor, votos_por_design e votos_por_combinacao. */
+export async function getDashboard(): Promise<Dashboard> {
   const sql = getSql();
-  const rows = await sql`
-    SELECT design, cor, COUNT(*)::int AS votos
-    FROM votos
-    GROUP BY design, cor
-    ORDER BY votos DESC
-  `;
-  return rows.map((r) => ({ designId: r.design, colorId: r.cor, votes: r.votos }));
+  const [totalRows, byColor, byDesign, byCombination] = await Promise.all([
+    sql`SELECT COUNT(*)::int AS total FROM votos`,
+    sql`SELECT cor, votos, percentagem FROM votos_por_cor`,
+    sql`SELECT design, votos, percentagem FROM votos_por_design`,
+    sql`SELECT cor, design, votos, percentagem FROM votos_por_combinacao`,
+  ]);
+  return {
+    total: totalRows[0].total,
+    byColor: byColor.map((r) => ({ id: r.cor, votes: r.votos, percentage: Number(r.percentagem) })),
+    byDesign: byDesign.map((r) => ({ id: r.design, votes: r.votos, percentage: Number(r.percentagem) })),
+    byCombination: byCombination.map((r) => ({
+      colorId: r.cor,
+      designId: r.design,
+      votes: r.votos,
+      percentage: Number(r.percentagem),
+    })),
+  };
+}
+
+export type VoteRecord = { id: string; visitorId: string; colorId: string; designId: string; createdAt: Date };
+
+/** Todos os votos, para exportação em CSV. */
+export async function getAllVotes(): Promise<VoteRecord[]> {
+  const rows = await getSql()`SELECT id, visitor_id, cor, design, criado_em FROM votos ORDER BY criado_em, id`;
+  return rows.map((r) => ({
+    id: String(r.id),
+    visitorId: r.visitor_id,
+    colorId: r.cor,
+    designId: r.design,
+    createdAt: new Date(r.criado_em),
+  }));
 }

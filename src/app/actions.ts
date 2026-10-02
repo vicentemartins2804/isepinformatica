@@ -1,7 +1,7 @@
 "use server";
 
 import { insertVote } from "@/lib/db";
-import { DUPLICATE_VOTE_MESSAGE } from "@/lib/messages";
+import { DUPLICATE_VOTE_MESSAGE, VOTING_CLOSED_MESSAGE } from "@/lib/messages";
 import { COLOR_OPTIONS, DESIGN_OPTIONS } from "@/lib/options";
 
 export type VoteState = {
@@ -9,6 +9,8 @@ export type VoteState = {
   message?: string;
   /** O dispositivo já tinha votado (o cliente marca-o no localStorage). */
   alreadyVoted?: boolean;
+  /** O prazo da votação já passou (US04). */
+  closed?: boolean;
 };
 
 const VISITOR_ID_PATTERN = /^[A-Za-z0-9]{8,64}$/;
@@ -28,12 +30,16 @@ export async function submitVote(_prev: VoteState, formData: FormData): Promise<
   }
 
   try {
-    const inserted = await insertVote({
+    // O prazo e a unicidade são garantidos pela base de dados (RLS + UNIQUE).
+    const result = await insertVote({
       visitorId,
       colorId: colorId as string,
       designId: designId as string,
     });
-    if (!inserted) {
+    if (result === "closed") {
+      return { status: "error", message: VOTING_CLOSED_MESSAGE, closed: true };
+    }
+    if (result === "duplicate") {
       return { status: "error", message: DUPLICATE_VOTE_MESSAGE, alreadyVoted: true };
     }
   } catch (err) {

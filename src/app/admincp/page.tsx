@@ -1,8 +1,18 @@
 import type { Metadata } from "next";
-import { getAuthLogs, type AuthEvent, type AuthLogRow } from "@/lib/db";
+import {
+  getAuthLogs,
+  getDashboard,
+  getVotingStatus,
+  type AuthEvent,
+  type AuthLogRow,
+  type Dashboard as DashboardData,
+  type VotingStatus,
+} from "@/lib/db";
 import { requireSession } from "@/lib/session";
 import { logout, logoutEverywhere } from "./actions";
 import ChangePasswordForm from "./change-password-form";
+import Dashboard from "./dashboard";
+import ScheduleForm from "./schedule-form";
 
 export const metadata: Metadata = {
   title: "Painel · Admin",
@@ -39,18 +49,73 @@ function describeBrowser(ua: string | null): string {
   return os ? `${browser} · ${os}` : browser;
 }
 
-async function loadLogs(): Promise<AuthLogRow[] | null> {
+/** Corre uma leitura e devolve `null` em caso de erro, para uma falha não derrubar o painel. */
+async function safely<T>(label: string, load: () => Promise<T>): Promise<T | null> {
   try {
-    return await getAuthLogs(50);
+    return await load();
   } catch (err) {
-    console.error("Erro ao ler registo de autenticação:", err);
+    console.error(`Erro ao ler ${label}:`, err);
     return null;
   }
 }
 
+// "sv-SE" dá "2026-10-15 23:59", que só precisa do "T" para o input datetime-local.
+const inputDateTime = new Intl.DateTimeFormat("sv-SE", {
+  timeZone: "Europe/Lisbon",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
+const toInput = (date: Date | null) => (date ? inputDateTime.format(date).replace(" ", "T") : null);
+
+function describeSchedule(status: VotingStatus): string {
+  const { start, deadline } = status;
+  if (!deadline) return "Sem horário definido: não há votação aberta. Define a data de fecho para abrir a votação.";
+  const closes = `fecha a ${dateFormat.format(deadline)}`;
+  if (status.upcoming && start) return `Abre a ${dateFormat.format(start)} e ${closes} (hora de Lisboa).`;
+  if (status.open) return `Aberta${start ? ` desde ${dateFormat.format(start)}` : ""}; ${closes} (hora de Lisboa).`;
+  return `Terminou a ${dateFormat.format(deadline)} (hora de Lisboa).`;
+}
+
+function VotingStatusSection({ status }: { status: VotingStatus | null }) {
+  const badge = !status
+    ? null
+    : status.open
+      ? { label: "Aberta", className: "bg-accent-soft text-accent-hover" }
+      : status.upcoming
+        ? { label: "Por abrir", className: "bg-line text-foreground" }
+        : status.deadline
+          ? { label: "Encerrada", className: "bg-danger/10 text-danger" }
+          : { label: "Sem votação", className: "bg-line text-muted" };
+
+  return (
+    <section className={card}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="font-semibold text-heading">Horário da votação</h2>
+        {badge && (
+          <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${badge.className}`}>{badge.label}</span>
+        )}
+      </div>
+      <p className="mt-2 text-sm text-muted">
+        {status === null ? "Não foi possível ler o horário." : describeSchedule(status)}
+      </p>
+      <div className="mt-4">
+        <ScheduleForm start={toInput(status?.start ?? null)} end={toInput(status?.deadline ?? null)} />
+      </div>
+    </section>
+  );
+}
+
 export default async function AdminPage() {
   const session = await requireSession();
-  const logs = await loadLogs();
+  const [dashboard, status, logs] = await Promise.all([
+    safely<DashboardData>("KPIs", getDashboard),
+    safely<VotingStatus>("horário da votação", getVotingStatus),
+    safely<AuthLogRow[]>("registo de autenticação", () => getAuthLogs(50)),
+  ]);
 
   return (
     <main className="flex flex-1 justify-center px-6 py-12">
@@ -62,13 +127,34 @@ export default async function AdminPage() {
               Sessão iniciada como <span className="font-medium text-foreground">{session.username}</span>
             </p>
           </div>
-          <form action={logout}>
-            <button type="submit" className={secondaryButton}>
-              Terminar sessão
-            </button>
-          </form>
+          <div className="flex flex-wrap gap-2">
+            {/* Download direto do CSV: um link normal, não navegação do lado do cliente. */}
+            <a
+              href="/api/admin/export"
+              download
+              className="inline-flex h-9 items-center rounded-lg bg-accent px-4 text-sm font-medium text-white outline-none transition-colors hover:bg-accent-hover focus-visible:ring-2 focus-visible:ring-accent-light focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+            >
+              Exportar Dados
+            </a>
+            <form action={logout}>
+              <button type="submit" className={secondaryButton}>
+                Terminar sessão
+              </button>
+            </form>
+          </div>
         </header>
 
+        {dashboard ? (
+          <Dashboard data={dashboard} />
+        ) : (
+          <section className={card}>
+            <p className="text-sm text-danger">Não foi possível carregar os resultados.</p>
+          </section>
+        )}
+
+        <VotingStatusSection status={status} />
+
+        <h2 className="mt-4 text-sm font-semibold uppercase tracking-wide text-muted">Conta</h2>
         <div className="grid gap-6 md:grid-cols-2">
           <section className={card}>
             <h2 className="mb-4 font-semibold text-heading">Alterar password</h2>

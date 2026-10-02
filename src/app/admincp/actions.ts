@@ -2,7 +2,8 @@
 
 import bcrypt from "bcryptjs";
 import { redirect } from "next/navigation";
-import { bumpSessionVersion, getAdmin, updateAdminPassword } from "@/lib/db";
+import { revalidatePath } from "next/cache";
+import { bumpSessionVersion, getAdmin, setVotingSchedule, updateAdminPassword } from "@/lib/db";
 import { createSession, deleteSession, getSession, logAuthEvent, LOGIN_PATH, requireSession } from "@/lib/session";
 
 export type FormState = { error?: string; success?: string };
@@ -92,4 +93,49 @@ export async function changePassword(_prev: FormState, formData: FormData): Prom
   await createSession({ username: admin.username, version });
   await logAuthEvent("password_alterada");
   return { success: "Password alterada. As sessões noutros dispositivos foram terminadas." };
+}
+
+const LOCAL_DATETIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
+
+/**
+ * Define ou remove o horário da votação (US04). As datas/horas são de Lisboa.
+ * O início é opcional (sem ele, abre logo); o fim é obrigatório.
+ */
+export async function setSchedule(_prev: FormState, formData: FormData): Promise<FormState> {
+  await requireSession();
+
+  if (formData.get("intent") === "remove") {
+    try {
+      await setVotingSchedule(null, null);
+    } catch (err) {
+      console.error("Erro ao remover o horário:", err);
+      return { error: "Não foi possível remover o horário. Tenta novamente." };
+    }
+    revalidatePath("/admincp");
+    return { success: "Horário removido: não há votação aberta." };
+  }
+
+  const start = formData.get("start");
+  const end = formData.get("end");
+  if (typeof end !== "string" || !LOCAL_DATETIME.test(end)) {
+    return { error: "Indica a data e hora de fecho." };
+  }
+  const startValue = typeof start === "string" && start !== "" ? start : null;
+  if (startValue !== null && !LOCAL_DATETIME.test(startValue)) {
+    return { error: "A data e hora de abertura não é válida." };
+  }
+  // O formato "AAAA-MM-DDTHH:MM" ordena-se bem como texto.
+  if (startValue !== null && startValue >= end) {
+    return { error: "A abertura tem de ser antes do fecho." };
+  }
+
+  try {
+    await setVotingSchedule(startValue, end);
+  } catch (err) {
+    console.error("Erro ao guardar o horário:", err);
+    return { error: "Não foi possível guardar o horário. Tenta novamente." };
+  }
+
+  revalidatePath("/admincp");
+  return { success: "Horário guardado." };
 }
