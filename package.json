@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "db:setup": "node --env-file-if-exists=.env.local scripts/db-setup.mjs",
+    "admin:set": "node --env-file-if-exists=.env.local scripts/set-admin.mjs"
   },
   "dependencies": {
     "@fingerprintjs/fingerprintjs": "^5.2.0",
