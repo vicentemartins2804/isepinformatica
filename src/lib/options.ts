@@ -21,7 +21,10 @@ export const DESIGN_OPTIONS: DesignOption[] = [
   { id: "design-3", name: "Design 3" },
 ];
 
+/** Sufixo dos mockups da versão finalista (só muda a imagem, não o voto). */
+export const FINALIST_SUFFIX = "-finalista";
+
 /** Nome base do ficheiro do mockup em public/mockups (sem extensão). */
-export function mockupKey(designId: string, colorId: string) {
-  return `${designId}-${colorId}`;
+export function mockupKey(designId: string, colorId: string, finalist = false) {
+  return `${designId}-${colorId}${finalist ? FINALIST_SUFFIX : ""}`;
 }

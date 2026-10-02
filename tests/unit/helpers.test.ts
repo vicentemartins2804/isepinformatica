@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { MESSAGE_MAX, parseContactForm } from "@/lib/contact";
 import { csvField, toCsv } from "@/lib/csv";
 import { formatRemaining } from "@/lib/countdown";
+import { mockupKey } from "@/lib/options";
 import { mockupImageBox } from "@/lib/mockup-view";
 import { safeRedirectTarget } from "@/lib/redirect";
 import { fillHours, HOUR_MS } from "@/lib/timeline";
@@ -136,5 +137,12 @@ describe("formatRemaining (contagem decrescente)", () => {
     [-5 * s, "0 s"],
   ])("%i ms → %s", (ms, expected) => {
     expect(formatRemaining(ms)).toBe(expected);
+  });
+});
+
+describe("mockupKey (nome do ficheiro do mockup)", () => {
+  it("versão normal e versão finalista", () => {
+    expect(mockupKey("design-1", "verde")).toBe("design-1-verde");
+    expect(mockupKey("design-1", "verde", true)).toBe("design-1-verde-finalista");
   });
 });

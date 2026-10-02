@@ -1,8 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import Link from "next/link";
-import { useActionState, useEffect, useState, useSyncExternalStore } from "react";
+import { useActionState, useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { COLOR_OPTIONS, DESIGN_OPTIONS, mockupKey } from "@/lib/options";
 import { getVisitorId, hasVotedLocally, markVotedLocally } from "@/lib/fingerprint";
 import { DUPLICATE_VOTE_MESSAGE } from "@/lib/messages";
@@ -10,6 +9,7 @@ import type { Mockup } from "@/lib/mockups";
 import { mockupImageBox, type MockupSide } from "@/lib/mockup-view";
 import { submitVote, type VoteState } from "./actions";
 import Countdown from "./countdown";
+import MockupZoom from "./mockup-zoom";
 import VotingModal from "./voting-modal";
 
 async function vote(prev: VoteState, formData: FormData): Promise<VoteState> {
@@ -87,6 +87,9 @@ export default function VoteForm({
   const [designId, setDesignId] = useState<string | null>(null);
   const [introDismissed, setIntroDismissed] = useState(false);
   const [side, setSide] = useState<MockupSide>("both");
+  const [finalist, setFinalist] = useState(false);
+  const [zoomed, setZoomed] = useState(false);
+  const closeZoom = useCallback(() => setZoomed(false), []);
   // Fase atual: avança sozinha de "por abrir" para "aberta" e de "aberta" para "terminada".
   const [livePhase, setLivePhase] = useState<VotingPhase>(phase);
   const [state, formAction, pending] = useActionState<VoteState, FormData>(vote, {
@@ -145,8 +148,15 @@ export default function VoteForm({
   // O mockup mostra a combinação default até o estudante escolher; o voto exige escolha explícita.
   const previewColor = color ?? COLOR_OPTIONS[0];
   const previewDesign = design ?? DESIGN_OPTIONS[0];
-  const previewKey = mockupKey(previewDesign.id, previewColor.id);
+  const normalKey = mockupKey(previewDesign.id, previewColor.id);
+  const finalistKey = mockupKey(previewDesign.id, previewColor.id, true);
+  // Versão finalista: só muda a imagem. Sem o ficheiro finalista, mostra a versão normal.
+  const finalistMissing = finalist && !mockups[finalistKey];
+  const previewKey = finalist && !finalistMissing ? finalistKey : normalKey;
   const mockup = mockups[previewKey];
+  const mockupAlt = `Sweat ${previewDesign.name} em ${previewColor.name}${
+    previewKey === finalistKey ? ", versão finalista" : ""
+  }${side === "front" ? ", frente" : side === "back" ? ", costas" : ""}`;
   const imageBox = mockup ? mockupImageBox(mockup.aspect, side) : null;
 
   if (state.status === "success") {
@@ -238,9 +248,7 @@ export default function VoteForm({
                 >
                   <Image
                     src={mockup.src}
-                    alt={`Sweat ${previewDesign.name} em ${previewColor.name}${
-                      side === "front" ? ", frente" : side === "back" ? ", costas" : ""
-                    }`}
+                    alt={mockupAlt}
                     fill
                     preload
                     sizes="(min-width: 768px) 768px, 200vw"
@@ -252,34 +260,70 @@ export default function VoteForm({
                   <SweatSilhouette hex={previewColor.hex} />
                 </div>
               )}
+              {mockup && (
+                <button
+                  type="button"
+                  onClick={() => setZoomed(true)}
+                  aria-label="Ampliar imagem"
+                  className="absolute inset-0 cursor-zoom-in rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent-light"
+                />
+              )}
             </div>
-            {mockup && (
-              <div role="group" aria-label="Parte da sweat a mostrar" className="flex rounded-lg border border-line bg-background p-0.5 text-xs font-medium">
-                {(
-                  [
-                    ["both", "Ambos"],
-                    ["front", "Frente"],
-                    ["back", "Costas"],
-                  ] as const
-                ).map(([value, label]) => (
-                  <button
-                    key={value}
-                    type="button"
-                    aria-pressed={side === value}
-                    onClick={() => setSide(value)}
-                    className={`h-7 rounded-md px-3 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent-light ${
-                      side === value ? "bg-accent text-white" : "text-muted hover:text-foreground"
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
+            {zoomed && mockup && (
+              <MockupZoom
+                src={mockup.src}
+                alt={mockupAlt}
+                aspect={mockup.aspect}
+                side={side}
+                background={mockup.background}
+                onClose={closeZoom}
+              />
             )}
-            <figcaption className="text-center text-xs text-muted">
-              {previewDesign.name} · {previewColor.name}
-              {!mockup && <span className="block opacity-70">mockup em falta: {previewKey}.png</span>}
-            </figcaption>
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              {mockup && (
+                <div role="group" aria-label="Parte da sweat a mostrar" className="flex rounded-lg border border-line bg-background p-0.5 text-xs font-medium">
+                  {(
+                    [
+                      ["both", "Ambos"],
+                      ["front", "Frente"],
+                      ["back", "Costas"],
+                    ] as const
+                  ).map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      aria-pressed={side === value}
+                      onClick={() => setSide(value)}
+                      className={`h-7 rounded-md px-3 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent-light ${
+                        side === value ? "bg-accent text-white" : "text-muted hover:text-foreground"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {/* Só muda a imagem mostrada: o voto continua a ser apenas a cor e o design. */}
+              <button
+                type="button"
+                aria-pressed={finalist}
+                onClick={() => setFinalist((f) => !f)}
+                className={`h-8 rounded-lg border px-3 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent-light ${
+                  finalist
+                    ? "border-accent bg-accent text-white"
+                    : "border-line bg-background text-muted hover:text-foreground"
+                }`}
+              >
+                Versão finalista
+              </button>
+            </div>
+            {/* Só aparece para avisar de ficheiros em falta em public/mockups. */}
+            {(!mockup || finalistMissing) && (
+              <figcaption className="text-center text-xs text-muted opacity-70">
+                {!mockup && <span className="block">mockup em falta: {previewKey}.png</span>}
+                {finalistMissing && <span className="block">versão finalista em falta: {finalistKey}.png</span>}
+              </figcaption>
+            )}
           </figure>
 
           {/* Escolhas — à esquerda em ecrã largo */}
@@ -347,15 +391,7 @@ export default function VoteForm({
                 </p>
               )}
               <p id="vote-hint" role="status" className="text-xs text-muted">
-                {canSubmit
-                  ? `O teu voto: ${design?.name} em ${color?.name}.`
-                  : `Seleciona ${missing.join(" e ")} para poderes submeter.`}
-              </p>
-              <p className="text-xs text-muted">
-                Para evitar votos repetidos, guardamos uma identificação anónima deste dispositivo.{" "}
-                <Link href="/privacidade" className="underline underline-offset-2 hover:text-foreground">
-                  Privacidade
-                </Link>
+                {!canSubmit && `Seleciona ${missing.join(" e ")} para poderes submeter.`}
               </p>
             </div>
           </div>
