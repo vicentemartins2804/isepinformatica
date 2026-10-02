@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import type { MockupImage } from "@/lib/mockup-view";
-import MockupImages from "./mockup-images";
+import MockupImages, { rowAspect } from "./mockup-images";
 
 type MockupZoomProps = {
   /** Uma imagem (frente ou costas) ou duas lado a lado (ambos). */
@@ -31,9 +31,8 @@ export default function MockupZoom({ images, background, onClose }: MockupZoomPr
     };
   }, [onClose]);
 
-  // As imagens ficam lado a lado, com espaço entre elas e à volta (o padding de 5%).
-  const contentAspect = images.reduce((sum, image) => sum + image.aspect, 0) + 0.06 * (images.length - 1);
-  const boxAspect = contentAspect * 1.1;
+  // A caixa tem a proporção das imagens lado a lado; a margem de 5% em cada eixo mantém-na.
+  const boxAspect = rowAspect(images);
 
   // No <body>, fora do formulário: as animações dos elementos de cima (transform) prenderiam
   // o `position: fixed` à caixa do formulário em vez do ecrã.
@@ -47,14 +46,19 @@ export default function MockupZoom({ images, background, onClose }: MockupZoomPr
       className="fixed inset-0 z-[70] flex cursor-zoom-out items-center justify-center bg-foreground/70 p-4 backdrop-blur-sm animate-fade-in"
     >
       <div
-        className="overflow-hidden rounded-2xl bg-surface p-[5%] shadow-2xl animate-rise"
+        className="relative overflow-hidden rounded-2xl bg-surface shadow-2xl animate-rise"
         style={{
-          aspectRatio: boxAspect,
-          width: `min(92vw, calc(88vh * ${boxAspect}))`,
+          // Largura e altura explícitas (sem aspect-ratio), limitadas a 92% da largura e a
+          // 80% da altura do ecrã. vh, e não dvh, para funcionar também em browsers antigos;
+          // os 80% deixam folga para a barra de endereço do telemóvel.
+          width: `min(92vw, ${80 * boxAspect}vh)`,
+          height: `min(${92 / boxAspect}vw, 80vh)`,
           backgroundColor: background || undefined,
         }}
       >
-        <MockupImages images={images} sizes={`${Math.round(92 / images.length)}vw`} />
+        <div className="absolute inset-[5%]">
+          <MockupImages images={images} containerAspect={boxAspect} sizes={`${Math.round(92 / images.length)}vw`} />
+        </div>
       </div>
       <button
         ref={closeRef}

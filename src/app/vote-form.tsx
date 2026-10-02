@@ -235,9 +235,11 @@ export default function VoteForm({
             >
               {shownImages.length > 0 ? (
                 // Frente e costas lado a lado ("Ambos"), ou só uma delas, centradas na caixa.
-                <div className="absolute inset-0 p-[6%]">
+                // inset de 6% em cada eixo: a área interior mantém a proporção 4:3 da caixa.
+                <div className="absolute inset-[6%]">
                   <MockupImages
                     images={shownImages}
+                    containerAspect={4 / 3}
                     preload
                     sizes={`(min-width: 1024px) ${shownImages.length > 1 ? 224 : 448}px, ${
                       shownImages.length > 1 ? 50 : 100
