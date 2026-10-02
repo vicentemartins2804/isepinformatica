@@ -10,6 +10,8 @@ export type Mockup = {
   src: string;
   /** Cor do fundo da foto, para o painel se fundir com a imagem. */
   background: string;
+  /** Proporção largura / altura, para recortar a frente e as costas. */
+  aspect: number;
 };
 
 async function cornerColor(file: string): Promise<string> {
@@ -35,8 +37,13 @@ export async function getMockups(): Promise<Record<string, Mockup>> {
       .filter((file) => EXTENSIONS.includes(path.extname(file).toLowerCase()))
       .map(async (file) => {
         const key = path.basename(file, path.extname(file));
-        const background = await cornerColor(path.join(MOCKUPS_DIR, file)).catch(() => "");
-        return [key, { src: `/mockups/${file}`, background }] as const;
+        const fullPath = path.join(MOCKUPS_DIR, file);
+        const [background, { width, height }] = await Promise.all([
+          cornerColor(fullPath).catch(() => ""),
+          sharp(fullPath).metadata(),
+        ]);
+        const aspect = width && height ? width / height : 1;
+        return [key, { src: `/mockups/${file}`, background, aspect }] as const;
       }),
   );
   return Object.fromEntries(entries);

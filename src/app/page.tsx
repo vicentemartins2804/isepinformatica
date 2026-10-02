@@ -17,20 +17,21 @@ async function loadStatus(): Promise<VotingStatus> {
   } catch (err) {
     // Se não der para ler o prazo, trata-se como "sem votação aberta".
     console.error("Erro ao ler o prazo da votação:", err);
-    return { start: null, deadline: null, open: false, upcoming: false };
+    return { start: null, deadline: null, open: false, upcoming: false, round: 0 };
   }
 }
 
 export default async function Home() {
   // O estado da votação depende da hora do pedido: nada de prerender.
   await connection();
-  const [mockups, { start, deadline, open, upcoming }] = await Promise.all([getMockups(), loadStatus()]);
+  const [mockups, { start, deadline, open, upcoming, round }] = await Promise.all([getMockups(), loadStatus()]);
   const phase: VotingPhase = !deadline ? "none" : open ? "open" : upcoming ? "upcoming" : "closed";
 
   return (
     <VoteForm
       mockups={mockups}
       phase={phase}
+      round={round}
       start={start?.toISOString() ?? null}
       deadline={deadline?.toISOString() ?? null}
       deadlineLabel={deadline ? dateFormat.format(deadline) : null}

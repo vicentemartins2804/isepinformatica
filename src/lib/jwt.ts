@@ -18,7 +18,7 @@ function getKey() {
   return new TextEncoder().encode(secret);
 }
 
-export function signSession(payload: SessionPayload): Promise<string> {
+export async function signSession(payload: SessionPayload): Promise<string> {
   return new SignJWT({ username: payload.username, ver: payload.version })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject("admin")

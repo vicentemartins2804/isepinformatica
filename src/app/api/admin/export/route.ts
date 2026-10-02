@@ -1,3 +1,4 @@
+import { toCsv } from "@/lib/csv";
 import { getAllVotes } from "@/lib/db";
 import { COLOR_OPTIONS, DESIGN_OPTIONS } from "@/lib/options";
 import { getSession } from "@/lib/session";
@@ -15,10 +16,6 @@ const lisbonDateTime = new Intl.DateTimeFormat("sv-SE", {
   minute: "2-digit",
   second: "2-digit",
 });
-
-function csvField(value: string): string {
-  return `"${value.replaceAll('"', '""')}"`;
-}
 
 /** US08: exporta todos os votos em CSV (separador ";" e BOM, para abrir bem no Excel em PT). */
 export async function GET() {
@@ -43,7 +40,7 @@ export async function GET() {
     colorName.get(v.colorId) ?? v.colorId,
     designName.get(v.designId) ?? v.designId,
   ]);
-  const csv = "﻿" + [header, ...rows].map((row) => row.map(csvField).join(";")).join("\r\n") + "\r\n";
+  const csv = toCsv([header, ...rows]);
 
   const date = new Date().toISOString().slice(0, 10);
   return new Response(csv, {

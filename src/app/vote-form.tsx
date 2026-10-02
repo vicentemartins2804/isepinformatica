@@ -1,16 +1,19 @@
 "use client";
 
 import Image from "next/image";
-import { useActionState, useEffect, useState } from "react";
+import Link from "next/link";
+import { useActionState, useEffect, useState, useSyncExternalStore } from "react";
 import { COLOR_OPTIONS, DESIGN_OPTIONS, mockupKey } from "@/lib/options";
 import { getVisitorId, hasVotedLocally, markVotedLocally } from "@/lib/fingerprint";
 import { DUPLICATE_VOTE_MESSAGE } from "@/lib/messages";
 import type { Mockup } from "@/lib/mockups";
+import { mockupImageBox, type MockupSide } from "@/lib/mockup-view";
 import { submitVote, type VoteState } from "./actions";
 import VotingModal from "./voting-modal";
 
 async function vote(prev: VoteState, formData: FormData): Promise<VoteState> {
-  if (hasVotedLocally()) {
+  const round = Number(formData.get("round"));
+  if (hasVotedLocally(round)) {
     return { status: "error", message: DUPLICATE_VOTE_MESSAGE, alreadyVoted: true };
   }
 
@@ -21,7 +24,7 @@ async function vote(prev: VoteState, formData: FormData): Promise<VoteState> {
   }
 
   const result = await submitVote(prev, formData);
-  if (result.status === "success" || result.alreadyVoted) markVotedLocally();
+  if (result.status === "success" || result.alreadyVoted) markVotedLocally(round);
   return result;
 }
 
@@ -50,6 +53,8 @@ export type VotingPhase = "none" | "upcoming" | "open" | "closed";
 type VoteFormProps = {
   mockups: Record<string, Mockup>;
   phase: VotingPhase;
+  /** Ronda atual da votação; a marca "já votei" do browser só conta para esta ronda. */
+  round: number;
   /** Início programado (ISO), ou null se a votação abre logo. */
   start: string | null;
   /** Prazo da votação (ISO), ou null se não houver data de fecho. */
@@ -58,10 +63,19 @@ type VoteFormProps = {
   deadlineLabel: string | null;
 };
 
-export default function VoteForm({ mockups, phase, start, deadline, deadlineLabel }: VoteFormProps) {
+const noopSubscribe = () => () => {};
+
+export default function VoteForm({ mockups, phase, round, start, deadline, deadlineLabel }: VoteFormProps) {
+  // Lido do localStorage depois da hidratação (no servidor é sempre `false`).
+  const votedOnThisDevice = useSyncExternalStore(
+    noopSubscribe,
+    () => hasVotedLocally(round),
+    () => false,
+  );
   const [colorId, setColorId] = useState<string | null>(null);
   const [designId, setDesignId] = useState<string | null>(null);
   const [introDismissed, setIntroDismissed] = useState(false);
+  const [side, setSide] = useState<MockupSide>("both");
   // Fase atual: avança sozinha de "por abrir" para "aberta" e de "aberta" para "terminada".
   const [livePhase, setLivePhase] = useState<VotingPhase>(phase);
   const [state, formAction, pending] = useActionState<VoteState, FormData>(vote, {
@@ -117,6 +131,7 @@ export default function VoteForm({ mockups, phase, start, deadline, deadlineLabe
   const previewDesign = design ?? DESIGN_OPTIONS[0];
   const previewKey = mockupKey(previewDesign.id, previewColor.id);
   const mockup = mockups[previewKey];
+  const imageBox = mockup ? mockupImageBox(mockup.aspect, side) : null;
 
   if (state.status === "success") {
     return (
@@ -129,6 +144,20 @@ export default function VoteForm({ mockups, phase, start, deadline, deadlineLabe
             O teu voto em <span className="text-foreground">{design?.name}</span>, cor{" "}
             <span className="text-foreground">{color?.name}</span>, foi registado.
           </p>
+        </section>
+      </main>
+    );
+  }
+
+  // Este dispositivo já votou nesta ronda: mostra-o logo, em vez do formulário.
+  if (livePhase === "open" && (votedOnThisDevice || state.alreadyVoted)) {
+    return (
+      <main className="flex flex-1 items-center justify-center px-6 py-16">
+        <section role="status" className="flex max-w-sm animate-rise flex-col items-center gap-2 text-center">
+          <h1 className="text-2xl font-semibold tracking-tight">
+            Já votaste, obrigado<span className="text-accent">!</span>
+          </h1>
+          <p className="text-sm text-muted">O voto deste dispositivo já está registado.</p>
         </section>
       </main>
     );
@@ -152,6 +181,7 @@ export default function VoteForm({ mockups, phase, start, deadline, deadlineLabe
       >
         <input type="hidden" name="colorId" value={colorId ?? ""} />
         <input type="hidden" name="designId" value={designId ?? ""} />
+        <input type="hidden" name="round" value={round} />
 
         <header className="flex flex-col items-center text-center">
           <h1 className="bg-gradient-to-r from-heading via-accent to-accent-light bg-clip-text pb-1 text-4xl font-extrabold tracking-tight text-transparent sm:text-5xl">
@@ -179,20 +209,56 @@ export default function VoteForm({ mockups, phase, start, deadline, deadlineLabe
               style={mockup?.background ? { backgroundColor: mockup.background } : undefined}
             >
               {mockup ? (
-                <Image
-                  src={mockup.src}
-                  alt={`Sweat ${previewDesign.name} em ${previewColor.name}`}
-                  fill
-                  preload
-                  sizes="(min-width: 768px) 384px, 100vw"
-                  className="object-contain"
-                />
+                // A imagem é posicionada (e ampliada, na frente/costas) dentro da caixa quadrada.
+                <div
+                  className="absolute transition-all duration-500 ease-out"
+                  style={{
+                    left: `${imageBox!.left}%`,
+                    top: `${imageBox!.top}%`,
+                    width: `${imageBox!.width}%`,
+                    height: `${imageBox!.height}%`,
+                  }}
+                >
+                  <Image
+                    src={mockup.src}
+                    alt={`Sweat ${previewDesign.name} em ${previewColor.name}${
+                      side === "front" ? ", frente" : side === "back" ? ", costas" : ""
+                    }`}
+                    fill
+                    preload
+                    sizes="(min-width: 768px) 768px, 200vw"
+                    className="object-fill"
+                  />
+                </div>
               ) : (
                 <div className="p-10">
                   <SweatSilhouette hex={previewColor.hex} />
                 </div>
               )}
             </div>
+            {mockup && (
+              <div role="group" aria-label="Parte da sweat a mostrar" className="flex rounded-lg border border-line bg-background p-0.5 text-xs font-medium">
+                {(
+                  [
+                    ["both", "Ambos"],
+                    ["front", "Frente"],
+                    ["back", "Costas"],
+                  ] as const
+                ).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    aria-pressed={side === value}
+                    onClick={() => setSide(value)}
+                    className={`h-7 rounded-md px-3 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent-light ${
+                      side === value ? "bg-accent text-white" : "text-muted hover:text-foreground"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
             <figcaption className="text-center text-xs text-muted">
               {previewDesign.name} · {previewColor.name}
               {!mockup && <span className="block opacity-70">mockup em falta: {previewKey}.png</span>}
@@ -267,6 +333,12 @@ export default function VoteForm({ mockups, phase, start, deadline, deadlineLabe
                 {canSubmit
                   ? `O teu voto: ${design?.name} em ${color?.name}.`
                   : `Seleciona ${missing.join(" e ")} para poderes submeter.`}
+              </p>
+              <p className="text-xs text-muted">
+                Para evitar votos repetidos, guardamos uma identificação anónima deste dispositivo.{" "}
+                <Link href="/privacidade" className="underline underline-offset-2 hover:text-foreground">
+                  Privacidade
+                </Link>
               </p>
             </div>
           </div>

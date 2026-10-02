@@ -1,5 +1,6 @@
 "use server";
 
+import { isBotRequest } from "@/lib/bot";
 import { insertVote } from "@/lib/db";
 import { DUPLICATE_VOTE_MESSAGE, VOTING_CLOSED_MESSAGE } from "@/lib/messages";
 import { COLOR_OPTIONS, DESIGN_OPTIONS } from "@/lib/options";
@@ -27,6 +28,10 @@ export async function submitVote(_prev: VoteState, formData: FormData): Promise<
   }
   if (typeof visitorId !== "string" || !VISITOR_ID_PATTERN.test(visitorId)) {
     return { status: "error", message: "Não foi possível identificar o dispositivo. Recarrega a página." };
+  }
+  // Captcha invisível: recusa pedidos automáticos antes de gravar o voto.
+  if (await isBotRequest()) {
+    return { status: "error", message: "Não foi possível validar o pedido. Recarrega a página e tenta novamente." };
   }
 
   try {

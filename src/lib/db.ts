@@ -56,6 +56,8 @@ export type VotingStatus = {
   open: boolean;
   /** Há início programado e ainda não chegou. */
   upcoming: boolean;
+  /** Ronda atual; muda quando a votação é reposta a zeros. */
+  round: number;
 };
 
 /** Horário e estado da votação (US04), com a mesma regra e o mesmo relógio que a política de RLS. */
@@ -65,14 +67,16 @@ export async function getVotingStatus(): Promise<VotingStatus> {
     SELECT votacao_inicio() AS inicio,
            votacao_prazo() AS prazo,
            votacao_aberta() AS aberta,
-           COALESCE(now() < votacao_inicio(), false) AS por_abrir
+           COALESCE(now() < votacao_inicio(), false) AS por_abrir,
+           votacao_ronda() AS ronda
   `;
-  const { inicio, prazo, aberta, por_abrir } = rows[0];
+  const { inicio, prazo, aberta, por_abrir, ronda } = rows[0];
   return {
     start: inicio ? new Date(inicio) : null,
     deadline: prazo ? new Date(prazo) : null,
     open: aberta,
     upcoming: por_abrir,
+    round: ronda,
   };
 }
 
@@ -98,35 +102,61 @@ export async function getAdmin(): Promise<AdminRecord | null> {
   return { username: row.username, passwordHash: row.password_hash, sessionVersion: row.sessao_versao };
 }
 
-/** Muda a password e invalida todas as sessões. Devolve a nova versão da sessão. */
-export async function updateAdminPassword(passwordHash: string): Promise<number> {
-  const rows = await getSql()`
-    UPDATE admin
-    SET password_hash = ${passwordHash},
-        password_alterada_em = now(),
-        sessao_versao = sessao_versao + 1
-    WHERE id = 1
-    RETURNING sessao_versao
-  `;
-  return rows[0].sessao_versao;
-}
-
 /** Invalida todas as sessões abertas (todos os dispositivos). */
 export async function bumpSessionVersion() {
   await getSql()`UPDATE admin SET sessao_versao = sessao_versao + 1 WHERE id = 1`;
 }
 
-export type AuthEvent = "login_sucesso" | "login_falhado" | "logout" | "logout_global" | "password_alterada";
+export type AuthEvent =
+  | "login_sucesso"
+  | "login_falhado"
+  | "login_bloqueado"
+  | "logout"
+  | "logout_global"
+  | "password_alterada" // eventos antigos, de quando dava para mudar a password no painel
+  | "votos_anulados"
+  | "votacao_reposta"
+  | "dados_anonimizados";
 
-export async function insertAuthLog(event: AuthEvent, ip: string | null, userAgent: string | null) {
-  await getSql()`INSERT INTO admin_logs (evento, ip, user_agent) VALUES (${event}, ${ip}, ${userAgent})`;
+/** Quanto tempo se guardam os registos do painel (RGPD). */
+const LOG_RETENTION_DAYS = 90;
+
+export async function insertAuthLog(
+  event: AuthEvent,
+  ip: string | null,
+  userAgent: string | null,
+  detail: string | null = null,
+) {
+  const sql = getSql();
+  await sql.transaction([
+    sql`INSERT INTO admin_logs (evento, ip, user_agent, detalhe) VALUES (${event}, ${ip}, ${userAgent}, ${detail})`,
+    sql`DELETE FROM admin_logs WHERE criado_em < now() - make_interval(days => ${LOG_RETENTION_DAYS})`,
+  ]);
 }
 
-export type AuthLogRow = { id: string; event: AuthEvent; ip: string | null; userAgent: string | null; createdAt: Date };
+/** Tentativas de login falhadas deste IP nos últimos `minutes` minutos. */
+export async function countRecentFailedLogins(ip: string, minutes: number): Promise<number> {
+  const rows = await getSql()`
+    SELECT COUNT(*)::int AS n
+    FROM admin_logs
+    WHERE ip = ${ip} AND evento = 'login_falhado'
+      AND criado_em > now() - make_interval(mins => ${minutes})
+  `;
+  return rows[0].n;
+}
+
+export type AuthLogRow = {
+  id: string;
+  event: AuthEvent;
+  ip: string | null;
+  userAgent: string | null;
+  detail: string | null;
+  createdAt: Date;
+};
 
 export async function getAuthLogs(limit = 50): Promise<AuthLogRow[]> {
   const rows = await getSql()`
-    SELECT id, evento, ip, user_agent, criado_em
+    SELECT id, evento, ip, user_agent, detalhe, criado_em
     FROM admin_logs
     ORDER BY criado_em DESC
     LIMIT ${limit}
@@ -136,6 +166,7 @@ export async function getAuthLogs(limit = 50): Promise<AuthLogRow[]> {
     event: r.evento,
     ip: r.ip,
     userAgent: r.user_agent,
+    detail: r.detalhe,
     createdAt: new Date(r.criado_em),
   }));
 }
@@ -178,4 +209,75 @@ export async function getAllVotes(): Promise<VoteRecord[]> {
     designId: r.design,
     createdAt: new Date(r.criado_em),
   }));
+}
+
+export type HourlyVotes = { hour: Date; votes: number };
+export type PeakMinute = { minute: Date; votes: number } | null;
+
+/** Votos por hora (para o gráfico de participação) e o minuto com mais votos. */
+export async function getVoteTimeline(): Promise<{ hourly: HourlyVotes[]; peak: PeakMinute }> {
+  const sql = getSql();
+  const [hourly, peak] = await Promise.all([
+    sql`
+      SELECT date_trunc('hour', criado_em) AS hora, COUNT(*)::int AS votos
+      FROM votos GROUP BY 1 ORDER BY 1
+    `,
+    sql`
+      SELECT date_trunc('minute', criado_em) AS minuto, COUNT(*)::int AS votos
+      FROM votos GROUP BY 1 ORDER BY votos DESC, minuto LIMIT 1
+    `,
+  ]);
+  return {
+    hourly: hourly.map((r) => ({ hour: new Date(r.hora), votes: r.votos })),
+    peak: peak[0] ? { minute: new Date(peak[0].minuto), votes: peak[0].votos } : null,
+  };
+}
+
+/** Votos mais recentes, para o organizador rever e anular os suspeitos. */
+export async function getRecentVotes(limit = 200): Promise<VoteRecord[]> {
+  const rows = await getSql()`
+    SELECT id, visitor_id, cor, design, criado_em FROM votos ORDER BY criado_em DESC, id DESC LIMIT ${limit}
+  `;
+  return rows.map((r) => ({
+    id: String(r.id),
+    visitorId: r.visitor_id,
+    colorId: r.cor,
+    designId: r.design,
+    createdAt: new Date(r.criado_em),
+  }));
+}
+
+/** Apaga os votos indicados. Devolve quantos foram apagados. */
+export async function deleteVotes(ids: string[]): Promise<number> {
+  const rows = await getSql()`DELETE FROM votos WHERE id = ANY(${ids}::bigint[]) RETURNING id`;
+  return rows.length;
+}
+
+/** Apaga todos os votos e começa uma nova ronda. Devolve quantos votos foram apagados. */
+export async function resetVotes(): Promise<number> {
+  const sql = getSql();
+  const [deleted] = await sql.transaction([
+    sql`DELETE FROM votos RETURNING id`,
+    sql`UPDATE configuracao SET ronda = ronda + 1 WHERE id = 1`,
+  ]);
+  return deleted.length;
+}
+
+/**
+ * RGPD: depois da votação, o fingerprint deixa de ser preciso. Substitui-o por um valor
+ * sem ligação ao dispositivo (mantendo a restrição UNIQUE). Devolve quantos votos mudaram.
+ */
+export async function anonymizeVotes(): Promise<number> {
+  const rows = await getSql()`
+    UPDATE votos SET visitor_id = 'anonimizado-' || id
+    WHERE visitor_id NOT LIKE 'anonimizado-%'
+    RETURNING id
+  `;
+  return rows.length;
+}
+
+/** Quantos votos ainda têm o fingerprint do dispositivo. */
+export async function countIdentifiableVotes(): Promise<number> {
+  const rows = await getSql()`SELECT COUNT(*)::int AS n FROM votos WHERE visitor_id NOT LIKE 'anonimizado-%'`;
+  return rows[0].n;
 }

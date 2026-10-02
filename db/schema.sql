@@ -4,7 +4,7 @@
 -- ─── US06: votos ──────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS votos (
   id         BIGINT      GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  visitor_id TEXT        NOT NULL,  -- hash do dispositivo (FingerprintJS)
+  visitor_id TEXT        NOT NULL,  -- hash do dispositivo (FingerprintJS); anonimizado após a votação
   cor        TEXT        NOT NULL,
   design     TEXT        NOT NULL,
   criado_em  TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -23,25 +23,35 @@ CREATE TABLE IF NOT EXISTS admin (
   password_alterada_em TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- Registo de autenticação mostrado no painel.
+-- Registo de autenticação e de ações do painel. Entradas com mais de 90 dias são apagadas
+-- automaticamente (RGPD), sempre que é gravado um novo evento.
 CREATE TABLE IF NOT EXISTS admin_logs (
   id         BIGINT      GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  evento     TEXT        NOT NULL,  -- login_sucesso, login_falhado, logout, logout_global, password_alterada
+  evento     TEXT        NOT NULL,  -- login_sucesso, login_falhado, login_bloqueado, logout, logout_global,
+                                    -- votos_anulados, votacao_reposta, dados_anonimizados
   ip         TEXT,
   user_agent TEXT,
+  detalhe    TEXT,
   criado_em  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE admin_logs ADD COLUMN IF NOT EXISTS detalhe TEXT;
 CREATE INDEX IF NOT EXISTS admin_logs_criado_em_idx ON admin_logs (criado_em DESC);
+-- Para contar tentativas de login falhadas por IP (limite de tentativas).
+CREATE INDEX IF NOT EXISTS admin_logs_ip_evento_idx ON admin_logs (ip, evento, criado_em DESC);
 
 -- ─── US04: início e fim da votação ──────────────────────────────────────────
 -- Uma única linha. prazo_votacao (fim) NULL = não há votação aberta.
 -- inicio_votacao NULL = abre logo que o fim está definido.
+-- ronda: incrementada ao repor a votação a zeros, para os browsers que já votaram
+-- numa ronda anterior poderem votar outra vez.
 CREATE TABLE IF NOT EXISTS configuracao (
   id             SMALLINT    PRIMARY KEY DEFAULT 1 CHECK (id = 1),
   inicio_votacao TIMESTAMPTZ,
-  prazo_votacao  TIMESTAMPTZ
+  prazo_votacao  TIMESTAMPTZ,
+  ronda          INTEGER     NOT NULL DEFAULT 1
 );
 ALTER TABLE configuracao ADD COLUMN IF NOT EXISTS inicio_votacao TIMESTAMPTZ;
+ALTER TABLE configuracao ADD COLUMN IF NOT EXISTS ronda INTEGER NOT NULL DEFAULT 1;
 INSERT INTO configuracao (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
 
 DO $$
@@ -58,6 +68,10 @@ $$;
 CREATE OR REPLACE FUNCTION votacao_inicio() RETURNS TIMESTAMPTZ
   LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public
   AS $$ SELECT inicio_votacao FROM configuracao WHERE id = 1 $$;
+
+CREATE OR REPLACE FUNCTION votacao_ronda() RETURNS INTEGER
+  LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public
+  AS $$ SELECT ronda FROM configuracao WHERE id = 1 $$;
 
 CREATE OR REPLACE FUNCTION votacao_prazo() RETURNS TIMESTAMPTZ
   LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public
@@ -110,8 +124,8 @@ REVOKE ALL ON votos, admin, admin_logs, configuracao FROM voto_anonimo;
 REVOKE ALL ON votos_por_cor, votos_por_design, votos_por_combinacao FROM PUBLIC;
 REVOKE ALL ON votos_por_cor, votos_por_design, votos_por_combinacao FROM voto_anonimo;
 
-REVOKE ALL ON FUNCTION votacao_inicio(), votacao_prazo(), votacao_aberta() FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION votacao_inicio(), votacao_prazo(), votacao_aberta() TO voto_anonimo;
+REVOKE ALL ON FUNCTION votacao_inicio(), votacao_prazo(), votacao_aberta(), votacao_ronda() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION votacao_inicio(), votacao_prazo(), votacao_aberta(), votacao_ronda() TO voto_anonimo;
 
 GRANT USAGE ON SCHEMA public TO voto_anonimo;
 -- Só estas colunas: id e criado_em são sempre gerados pela base de dados.

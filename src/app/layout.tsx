@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Background1852 from "./background-1852";
+import SiteFooter from "./site-footer";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -13,9 +14,27 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const TITLE = "Votação da Sweat · Engenharia Informática ISEP";
+const DESCRIPTION = "Escolhe a cor e o design da sweat do curso de Engenharia Informática do ISEP.";
+
+// Os links de pré-visualização (WhatsApp, Discord) precisam de URLs absolutos. Na Vercel
+// usa-se o domínio de produção; localmente, o servidor de desenvolvimento.
+const siteUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL
+  ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+  : "http://localhost:3000";
+
 export const metadata: Metadata = {
-  title: "Votação da Sweat",
-  description: "Vota na cor e no design da sweat do curso.",
+  metadataBase: new URL(siteUrl),
+  title: TITLE,
+  description: DESCRIPTION,
+  openGraph: {
+    title: TITLE,
+    description: DESCRIPTION,
+    siteName: "Engenharia Informática · ISEP",
+    locale: "pt_PT",
+    type: "website",
+  },
+  twitter: { card: "summary_large_image", title: TITLE, description: DESCRIPTION },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
@@ -27,6 +46,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="relative isolate min-h-full flex flex-col">
         <Background1852 />
         {children}
+        <SiteFooter />
       </body>
     </html>
   );

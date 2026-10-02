@@ -1,0 +1,91 @@
+import { describe, expect, it } from "vitest";
+import { csvField, toCsv } from "@/lib/csv";
+import { mockupImageBox } from "@/lib/mockup-view";
+import { safeRedirectTarget } from "@/lib/redirect";
+import { fillHours, HOUR_MS } from "@/lib/timeline";
+
+describe("safeRedirectTarget (destino depois do login)", () => {
+  it.each(["/admincp", "/admincp/", "/admincp?tab=1"])("aceita %s", (from) => {
+    expect(safeRedirectTarget(from)).toBe(from);
+  });
+
+  it.each([
+    ["um site externo", "https://mau.example"],
+    ["um URL relativo ao protocolo", "//mau.example/admincp"],
+    ["outra página do site", "/privacidade"],
+    ["um caminho parecido", "/admincpx"],
+    ["a própria página de login", "/admincp/login"],
+    ["um valor que não é texto", null],
+  ])("recusa %s", (_label, from) => {
+    expect(safeRedirectTarget(from)).toBe("/admincp");
+  });
+});
+
+describe("CSV", () => {
+  it("põe os campos entre aspas e duplica as aspas internas", () => {
+    expect(csvField('Design "1"')).toBe('"Design ""1"""');
+  });
+
+  it("começa com o BOM e usa ';' e CRLF", () => {
+    const csv = toCsv([
+      ["a", "b"],
+      ["1", "2"],
+    ]);
+    expect(csv.charCodeAt(0)).toBe(0xfeff);
+    expect(csv.slice(1)).toBe('"a";"b"\r\n"1";"2"\r\n');
+  });
+});
+
+describe("fillHours (gráfico de votos por hora)", () => {
+  const h = (n: number) => new Date(Date.UTC(2026, 9, 1, n));
+
+  it("preenche as horas sem votos com zero", () => {
+    const filled = fillHours(
+      [
+        { hour: h(10), votes: 3 },
+        { hour: h(13), votes: 1 },
+      ],
+      100,
+    );
+    expect(filled.map((x) => x.votes)).toEqual([3, 0, 0, 1]);
+    expect(filled[1].hour.getTime() - filled[0].hour.getTime()).toBe(HOUR_MS);
+  });
+
+  it("limita às últimas horas pedidas", () => {
+    const filled = fillHours(
+      [
+        { hour: h(0), votes: 1 },
+        { hour: h(20), votes: 2 },
+      ],
+      5,
+    );
+    expect(filled).toHaveLength(5);
+    expect(filled.at(-1)).toEqual({ hour: h(20), votes: 2 });
+  });
+
+  it("sem votos devolve uma lista vazia", () => {
+    expect(fillHours([], 10)).toEqual([]);
+  });
+});
+
+describe("mockupImageBox (ver frente e costas)", () => {
+  it("'ambos' encaixa a imagem inteira, como object-fit: contain", () => {
+    expect(mockupImageBox(2, "both")).toEqual({ left: 0, top: 25, width: 100, height: 50 });
+  });
+
+  it("'frente' mostra a metade esquerda centrada", () => {
+    // Imagem 1,2:1 → cada metade é 0,6:1 e ocupa a altura toda.
+    const box = mockupImageBox(1.2, "front");
+    expect(box.height).toBe(100);
+    expect(box.width).toBeCloseTo(120);
+    expect(box.left).toBeCloseTo(20); // (100 - 60) / 2
+  });
+
+  it("'costas' mostra a metade direita centrada", () => {
+    expect(mockupImageBox(1.2, "back").left).toBeCloseTo(-40); // 20 - 60
+  });
+
+  it("metades mais largas do que altas ocupam a largura toda", () => {
+    expect(mockupImageBox(4, "back")).toEqual({ left: -100, top: 25, width: 200, height: 50 });
+  });
+});

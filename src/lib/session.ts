@@ -5,7 +5,9 @@ import { cache } from "react";
 import { getAdmin, insertAuthLog, type AuthEvent } from "./db";
 import { SESSION_COOKIE, SESSION_TTL_SECONDS, signSession, verifySessionToken, type SessionPayload } from "./jwt";
 
-export const LOGIN_PATH = "/admincp/login";
+import { LOGIN_PATH } from "./redirect";
+
+export { LOGIN_PATH };
 
 export async function createSession(payload: SessionPayload) {
   const token = await signSession(payload);
@@ -46,12 +48,17 @@ export async function requireSession(): Promise<SessionPayload> {
   return session;
 }
 
-/** Guarda um evento no registo de autenticação, com o IP e o browser do pedido. */
-export async function logAuthEvent(event: AuthEvent) {
+/** IP de quem fez o pedido (na Vercel, o primeiro valor de x-forwarded-for). */
+export async function getRequestIp(): Promise<string | null> {
   const h = await headers();
-  const ip = h.get("x-forwarded-for")?.split(",")[0]?.trim() || h.get("x-real-ip") || null;
+  return h.get("x-forwarded-for")?.split(",")[0]?.trim() || h.get("x-real-ip") || null;
+}
+
+/** Guarda um evento no registo do painel, com o IP e o browser do pedido. */
+export async function logAuthEvent(event: AuthEvent, detail: string | null = null) {
+  const h = await headers();
   try {
-    await insertAuthLog(event, ip, h.get("user-agent"));
+    await insertAuthLog(event, await getRequestIp(), h.get("user-agent"), detail);
   } catch (err) {
     // O registo não deve impedir o login ou o logout.
     console.error("Erro ao registar evento de autenticação:", err);

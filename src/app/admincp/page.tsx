@@ -1,18 +1,28 @@
 import type { Metadata } from "next";
 import {
+  countIdentifiableVotes,
   getAuthLogs,
   getDashboard,
+  getRecentVotes,
+  getVoteTimeline,
   getVotingStatus,
   type AuthEvent,
   type AuthLogRow,
   type Dashboard as DashboardData,
+  type VoteRecord,
   type VotingStatus,
 } from "@/lib/db";
+import { COLOR_OPTIONS, DESIGN_OPTIONS } from "@/lib/options";
+import { qrSvg } from "@/lib/qr";
 import { requireSession } from "@/lib/session";
+import { getVotingUrl } from "@/lib/site-url";
 import { logout, logoutEverywhere } from "./actions";
-import ChangePasswordForm from "./change-password-form";
 import Dashboard from "./dashboard";
+import PrivacySection from "./privacy-section";
+import QrSection from "./qr-section";
 import ScheduleForm from "./schedule-form";
+import VoteTimeline from "./vote-timeline";
+import VotesManager, { type VoteRow } from "./votes-manager";
 
 export const metadata: Metadata = {
   title: "Painel · Admin",
@@ -26,10 +36,18 @@ const secondaryButton =
 const EVENT_LABELS: Record<AuthEvent, { label: string; className: string }> = {
   login_sucesso: { label: "Login", className: "bg-accent-soft text-accent-hover" },
   login_falhado: { label: "Login falhado", className: "bg-danger/10 text-danger" },
+  login_bloqueado: { label: "Login bloqueado", className: "bg-danger/10 text-danger" },
   logout: { label: "Logout", className: "bg-line text-muted" },
   logout_global: { label: "Logout em todos", className: "bg-line text-foreground" },
   password_alterada: { label: "Password alterada", className: "bg-accent-soft text-foreground" },
+  votos_anulados: { label: "Votos anulados", className: "bg-danger/10 text-danger" },
+  votacao_reposta: { label: "Votação reposta", className: "bg-danger/10 text-danger" },
+  dados_anonimizados: { label: "Dados anonimizados", className: "bg-accent-soft text-foreground" },
 };
+
+const RECENT_VOTES_LIMIT = 200;
+const colorById = new Map(COLOR_OPTIONS.map((c) => [c.id, c]));
+const designById = new Map(DESIGN_OPTIONS.map((d) => [d.id, d]));
 
 const dateFormat = new Intl.DateTimeFormat("pt-PT", {
   dateStyle: "short",
@@ -111,11 +129,25 @@ function VotingStatusSection({ status }: { status: VotingStatus | null }) {
 
 export default async function AdminPage() {
   const session = await requireSession();
-  const [dashboard, status, logs] = await Promise.all([
+  const [dashboard, status, logs, timeline, recentVotes, identifiable] = await Promise.all([
     safely<DashboardData>("KPIs", getDashboard),
     safely<VotingStatus>("horário da votação", getVotingStatus),
-    safely<AuthLogRow[]>("registo de autenticação", () => getAuthLogs(50)),
+    safely<AuthLogRow[]>("registo do painel", () => getAuthLogs(50)),
+    safely("votos ao longo do tempo", getVoteTimeline),
+    safely<VoteRecord[]>("votos recentes", () => getRecentVotes(RECENT_VOTES_LIMIT)),
+    safely<number>("votos identificáveis", countIdentifiableVotes),
   ]);
+  const voteRows: VoteRow[] = (recentVotes ?? []).map((v) => ({
+    id: v.id,
+    time: dateFormat.format(v.createdAt),
+    color: colorById.get(v.colorId)?.name ?? v.colorId,
+    colorHex: colorById.get(v.colorId)?.hex,
+    design: designById.get(v.designId)?.name ?? v.designId,
+    visitorId: v.visitorId,
+  }));
+  const votingUrl = await getVotingUrl();
+  const qr = await safely("QR code", () => qrSvg(votingUrl));
+  const votingEnded = !!status && !status.open && !status.upcoming && status.deadline !== null;
 
   return (
     <main className="flex flex-1 justify-center px-6 py-12">
@@ -152,15 +184,30 @@ export default async function AdminPage() {
           </section>
         )}
 
+        {timeline ? (
+          <VoteTimeline hourly={timeline.hourly} peak={timeline.peak} />
+        ) : (
+          <section className={card}>
+            <p className="text-sm text-danger">Não foi possível carregar os votos ao longo do tempo.</p>
+          </section>
+        )}
+
         <VotingStatusSection status={status} />
 
-        <h2 className="mt-4 text-sm font-semibold uppercase tracking-wide text-muted">Conta</h2>
-        <div className="grid gap-6 md:grid-cols-2">
-          <section className={card}>
-            <h2 className="mb-4 font-semibold text-heading">Alterar password</h2>
-            <ChangePasswordForm />
-          </section>
+        <QrSection url={votingUrl} svg={qr} />
 
+        {recentVotes ? (
+          <VotesManager votes={voteRows} total={dashboard?.total ?? voteRows.length} />
+        ) : (
+          <section className={card}>
+            <p className="text-sm text-danger">Não foi possível carregar os votos.</p>
+          </section>
+        )}
+
+        <PrivacySection identifiable={identifiable} votingOpen={status?.open ?? false} votingEnded={votingEnded} />
+
+        <h2 className="mt-4 text-sm font-semibold uppercase tracking-wide text-muted">Conta</h2>
+        <div className="grid gap-6">
           <section className={`${card} flex flex-col`}>
             <h2 className="font-semibold text-heading">Sessões</h2>
             <p className="mt-2 text-sm text-muted">
@@ -179,8 +226,8 @@ export default async function AdminPage() {
         </div>
 
         <section className={card}>
-          <h2 className="font-semibold text-heading">Registo de autenticação</h2>
-          <p className="mt-1 text-sm text-muted">Últimos 50 eventos.</p>
+          <h2 className="font-semibold text-heading">Registo do painel</h2>
+          <p className="mt-1 text-sm text-muted">Últimos 50 eventos: logins e ações sobre os votos. Guardados durante 90 dias.</p>
 
           {logs === null ? (
             <p className="mt-4 text-sm text-danger">Não foi possível carregar o registo.</p>
@@ -193,6 +240,7 @@ export default async function AdminPage() {
                   <tr className="border-b border-line">
                     <th className="py-2 pr-4 font-medium">Data</th>
                     <th className="py-2 pr-4 font-medium">Evento</th>
+                    <th className="py-2 pr-4 font-medium">Detalhe</th>
                     <th className="py-2 pr-4 font-medium">IP</th>
                     <th className="py-2 font-medium">Browser</th>
                   </tr>
@@ -208,6 +256,7 @@ export default async function AdminPage() {
                             {event.label}
                           </span>
                         </td>
+                        <td className="py-2 pr-4 text-xs text-muted">{log.detail ?? "—"}</td>
                         <td className="py-2 pr-4 font-mono text-xs">{log.ip ?? "—"}</td>
                         <td className="py-2 text-muted" title={log.userAgent ?? undefined}>
                           {describeBrowser(log.userAgent)}

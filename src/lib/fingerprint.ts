@@ -36,10 +36,14 @@ export function getVisitorId(): Promise<string> {
   return visitorIdPromise;
 }
 
-export function hasVotedLocally(): boolean {
-  return storageGet(VOTED_KEY) !== null;
+/**
+ * Indica se este browser já votou na ronda indicada. A marca guarda o número da ronda:
+ * quando o organizador repõe a votação a zeros, a ronda muda e a marca antiga deixa de contar.
+ */
+export function hasVotedLocally(round: number): boolean {
+  return storageGet(VOTED_KEY) === String(round);
 }
 
-export function markVotedLocally() {
-  storageSet(VOTED_KEY, new Date().toISOString());
+export function markVotedLocally(round: number) {
+  storageSet(VOTED_KEY, String(round));
 }
