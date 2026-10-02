@@ -1,6 +1,6 @@
 # Votação da Sweat — Engenharia Informática ISEP
 
-Site para os estudantes votarem na cor e no design da sweat do curso, com uma área reservada (`/admincp`) para a organização.
+Site para os estudantes votarem na cor e no design da sweat de curso, com uma área reservada (`/admincp`) para a organização.
 
 ## Desenvolvimento
 

@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-const TITLE = "Votação da Sweat · Engenharia Informática ISEP";
-const DESCRIPTION = "Escolhe a cor e o design da sweat do curso de Engenharia Informática do ISEP.";
+const TITLE = "ISEP Informática";
+const DESCRIPTION = "Escolhe a cor e o design da sweat de curso de Engenharia Informática do ISEP.";
 
 // Os links de pré-visualização (WhatsApp, Discord) precisam de URLs absolutos. Na Vercel
 // usa-se o domínio de produção; localmente, o servidor de desenvolvimento.
@@ -30,7 +30,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: TITLE,
     description: DESCRIPTION,
-    siteName: "Engenharia Informática · ISEP",
+    siteName: "Engenharia Informática ISEP",
     locale: "pt_PT",
     type: "website",
   },

@@ -23,7 +23,7 @@ export default function VotingModal({ title, children, action }: VotingModalProp
         aria-describedby={children ? descriptionId : undefined}
         className="w-full max-w-sm rounded-2xl border border-line bg-background p-8 text-center shadow-xl animate-rise"
       >
-        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-accent">Engenharia Informática · ISEP</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-accent">Engenharia Informática ISEP</p>
         <h2 id={titleId} className="mt-3 text-2xl font-bold tracking-tight text-heading">
           {title}
         </h2>

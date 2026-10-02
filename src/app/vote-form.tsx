@@ -122,16 +122,16 @@ export default function VoteForm({
   } else if (closed) {
     modal = (
       <VotingModal title="Não há nenhuma votação aberta">
-        De momento não está a decorrer nenhuma votação. Volta mais tarde.
+        Volta mais tarde.
       </VotingModal>
     );
   } else if (!introDismissed) {
     modal = (
       <VotingModal
         title="A votação está aberta"
-        action={{ label: "Avançar para a votação", onClick: () => setIntroDismissed(true) }}
+        action={{ label: "Começar", onClick: () => setIntroDismissed(true) }}
       >
-        Escolhe a cor e o design da sweat do curso.
+        Escolhe a cor e o design da sweat de curso.
       </VotingModal>
     );
   }
@@ -240,7 +240,7 @@ export default function VoteForm({
                   <MockupImages
                     images={shownImages}
                     containerAspect={4 / 3}
-                    preload
+                    priority
                     sizes={`(min-width: 1024px) ${shownImages.length > 1 ? 224 : 448}px, ${
                       shownImages.length > 1 ? 50 : 100
                     }vw`}
@@ -374,7 +374,7 @@ export default function VoteForm({
                 aria-describedby="vote-hint"
                 className="h-10 rounded-lg bg-accent px-5 text-sm font-medium text-white outline-none transition-colors hover:bg-accent-hover focus-visible:ring-2 focus-visible:ring-accent-light focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:bg-line disabled:text-muted"
               >
-                {pending ? "A submeter…" : "Submeter voto"}
+                {pending ? "A enviar…" : "Votar"}
               </button>
               {state.status === "error" && (
                 <p role="alert" className="text-xs text-danger">
@@ -382,7 +382,7 @@ export default function VoteForm({
                 </p>
               )}
               <p id="vote-hint" role="status" className="text-xs text-muted">
-                {!canSubmit && `Seleciona ${missing.join(" e ")} para poderes submeter.`}
+                {!canSubmit && `Escolhe ${missing.join(" e ")} para votar.`}
               </p>
             </div>
           </div>

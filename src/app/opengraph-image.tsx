@@ -1,7 +1,7 @@
 import { ImageResponse } from "next/og";
 
 // Imagem de pré-visualização ao partilhar o link (WhatsApp, Discord, etc.).
-export const alt = "Engenharia Informática · ISEP: votação da sweat de curso";
+export const alt = "Votação da sweat de curso de Engenharia Informática do ISEP";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -100,7 +100,7 @@ export default async function OpengraphImage() {
           <div style={{ width: 90, height: 2, background: NORD.accentLight, marginLeft: 12 }} />
         </div>
         <div style={{ display: "flex", marginTop: 48, fontSize: 32, color: NORD.muted }}>
-          Vota na cor e no design da sweat do curso
+          Vota na cor e no design da sweat de curso
         </div>
       </div>
     ),

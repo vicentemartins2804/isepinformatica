@@ -29,7 +29,7 @@ import VoteTimeline from "./vote-timeline";
 import VotesManager, { type VoteRow } from "./votes-manager";
 
 export const metadata: Metadata = {
-  title: "Painel · Admin",
+  title: "Painel",
   robots: { index: false },
 };
 

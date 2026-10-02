@@ -89,6 +89,7 @@ describe("parseContactForm (formulário de contacto)", () => {
   it.each([
     ["sem email", { email: "" }],
     ["um email inválido", { email: "ana@isep" }],
+    ["um email com parâmetros de mailto", { email: "ana@isep.pt?subject=x&body=y" }],
     ["um assunto desconhecido", { topic: "spam" }],
     ["uma mensagem vazia", { message: "   " }],
     ["uma mensagem longa demais", { message: "x".repeat(MESSAGE_MAX + 1) }],

@@ -16,7 +16,8 @@ type MockupImagesProps = {
   containerAspect: number;
   /** Atributo `sizes` de cada imagem. */
   sizes: string;
-  preload?: boolean;
+  /** Imagens visíveis logo ao abrir: carregam primeiro (fetchPriority="high"). */
+  priority?: boolean;
 };
 
 /**
@@ -26,7 +27,7 @@ type MockupImagesProps = {
  * em todos os browsers, incluindo Safari antigos. Tem de estar dentro de um elemento
  * posicionado com a proporção `containerAspect`.
  */
-export default function MockupImages({ images, containerAspect, sizes, preload = false }: MockupImagesProps) {
+export default function MockupImages({ images, containerAspect, sizes, priority = false }: MockupImagesProps) {
   const row = rowAspect(images);
   // Fila mais larga do que a caixa: ocupa a largura toda; senão, a altura toda.
   const rowWidth = row > containerAspect ? 100 : (row / containerAspect) * 100;
@@ -62,7 +63,17 @@ export default function MockupImages({ images, containerAspect, sizes, preload =
                 height: `${100 / image.crop.height}%`,
               }}
             >
-              <Image src={image.src} alt={image.alt} fill preload={preload} sizes={sizes} className="object-fill" />
+              {/* Sem `preload`: com imagens que mudam (cor, frente/costas, finalista), cada uma
+              pré-carregada fica por usar e o browser avisa. O Next recomenda fetchPriority. */}
+              <Image
+                src={image.src}
+                alt={image.alt}
+                fill
+                sizes={sizes}
+                loading={priority ? "eager" : undefined}
+                fetchPriority={priority ? "high" : undefined}
+                className="object-fill"
+              />
             </div>
           </div>
         );

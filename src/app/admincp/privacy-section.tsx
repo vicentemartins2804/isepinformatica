@@ -21,8 +21,9 @@ export default function PrivacySection({ identifiable, votingOpen, votingEnded }
     <section className={card}>
       <h2 className="font-semibold text-heading">Dados pessoais (RGPD)</h2>
       <p className="mt-2 text-sm text-muted">
-        A identificação do dispositivo só é precisa enquanto a votação está aberta. Segundo a página de privacidade, é
-        apagada até 30 dias depois do fecho. Os registos do painel (IP e browser) apagam-se sozinhos ao fim de 90 dias.
+        A identificação do dispositivo só é precisa enquanto a votação está aberta. A página de privacidade promete que é
+        apagada até 30 dias depois do fecho, e isso só acontece quando carregas neste botão. Os registos do painel (IP e
+        browser) com mais de 90 dias são apagados sempre que há um novo login ou ação no painel.
       </p>
       <p className="mt-2 text-sm">
         {identifiable === null ? (

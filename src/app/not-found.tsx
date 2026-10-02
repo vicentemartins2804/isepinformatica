@@ -3,7 +3,7 @@ import Link from "next/link";
 import StatusMessage, { statusButton } from "./status-message";
 
 export const metadata: Metadata = {
-  title: "Página não encontrada · Votação da Sweat",
+  title: "Página não encontrada",
 };
 
 export default function NotFound() {

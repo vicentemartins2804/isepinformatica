@@ -25,10 +25,10 @@ export default function GlobalError({ error, retry }: { error: Error & { digest?
           padding: "0 24px",
         }}
       >
-        <title>Erro · Votação da Sweat</title>
+        <title>Erro</title>
         <main>
           <p style={{ fontSize: 12, fontWeight: 600, letterSpacing: "0.3em", textTransform: "uppercase", color: "#5e81ac" }}>
-            Engenharia Informática · ISEP
+            Engenharia Informática ISEP
           </p>
           <h1 style={{ fontSize: 24, margin: "8px 0" }}>Algo correu mal</h1>
           <p style={{ fontSize: 14, color: "#4c566a" }}>O site não está disponível neste momento. Tenta outra vez daqui a pouco.</p>

@@ -3,8 +3,8 @@ import Link from "next/link";
 import ContactForm from "./contact-form";
 
 export const metadata: Metadata = {
-  title: "Contacto · Votação da Sweat",
-  description: "Envia uma mensagem à organização da votação da sweat de Engenharia Informática.",
+  title: "Contacto",
+  description: "Envia uma mensagem à organização da votação da sweat de curso de Engenharia Informática.",
 };
 
 export default function ContactPage() {
@@ -17,15 +17,14 @@ export default function ContactPage() {
           </Link>
           <h1 className="mt-3 text-2xl font-bold tracking-tight text-heading">Contacta-nos</h1>
           <p className="mt-1">
-            Tens uma dúvida sobre a votação ou um pedido sobre os teus dados? Escreve-nos e a organização responde para o
-            email que indicares.
+            Dúvidas sobre a votação ou pedidos sobre os teus dados: escreve-nos e respondemos para o teu email.
           </p>
         </header>
 
         <ContactForm />
 
         <p className="text-xs">
-          Guardamos o teu nome, email e mensagem só para te responder, e apagamo-los ao fim de 90 dias. Mais detalhes na{" "}
+          Guardamos o teu nome, email e mensagem só para te responder, e apagamo-los quando o assunto fica resolvido. Mais detalhes na{" "}
           <Link href="/privacidade" className="underline underline-offset-2 hover:text-foreground">
             página de privacidade
           </Link>

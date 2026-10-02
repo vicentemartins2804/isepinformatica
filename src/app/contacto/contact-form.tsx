@@ -19,7 +19,7 @@ export default function ContactForm() {
         <h2 className="text-xl font-semibold tracking-tight text-heading">
           Mensagem enviada<span className="text-accent">!</span>
         </h2>
-        <p>Obrigado. Vamos responder para o email que indicaste assim que possível.</p>
+        <p>Respondemos para o email que indicaste.</p>
       </section>
     );
   }

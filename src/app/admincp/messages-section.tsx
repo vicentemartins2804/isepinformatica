@@ -43,8 +43,8 @@ export default function MessagesSection({ messages }: { messages: MessageRow[] |
         )}
       </div>
       <p className="mt-1 text-sm text-muted">
-        Enviadas pela página de contacto. Responde por email e apaga-as quando o assunto estiver resolvido. São apagadas
-        automaticamente ao fim de 90 dias.
+        Enviadas pela página de contacto. Responde por email e apaga-as quando o assunto estiver resolvido. As que têm
+        mais de 90 dias são apagadas quando abres este painel.
       </p>
 
       {messages === null ? (

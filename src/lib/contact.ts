@@ -14,7 +14,9 @@ export const MESSAGE_MAX = 2000;
 
 export type ContactMessage = { name: string | null; email: string; topic: ContactTopic; message: string };
 
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// Sem caracteres com significado num link mailto (? & # % / :) nem < > ", para o botão
+// "Responder" do painel não poder ser usado para pré-preencher o email.
+const EMAIL_PATTERN = /^[^\s@?&#%/:<>"]+@[^\s@?&#%/:<>"]+\.[^\s@?&#%/:<>"]+$/;
 
 /** Valida os campos do formulário. Devolve a mensagem pronta a gravar, ou o erro a mostrar. */
 export function parseContactForm(

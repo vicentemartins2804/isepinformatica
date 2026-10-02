@@ -73,3 +73,18 @@ test("a página de privacidade indica o contacto para exercer os direitos", asyn
   await page.getByRole("link", { name: "página de contacto" }).click();
   await expect(page).toHaveURL(/\/contacto$/);
 });
+
+test("envia os cabeçalhos de segurança", async ({ request }) => {
+  const response = await request.get("/privacidade");
+  const headers = response.headers();
+  expect(headers["x-frame-options"]).toBe("DENY");
+  expect(headers["content-security-policy"]).toContain("frame-ancestors 'none'");
+  expect(headers["x-content-type-options"]).toBe("nosniff");
+});
+
+test("o rodapé tem a ligação ao Instagram", async ({ page }) => {
+  await page.goto("/privacidade");
+  const link = page.getByRole("contentinfo").getByRole("link", { name: /Instagram/ });
+  await expect(link).toHaveAttribute("href", "https://www.instagram.com/isepinformatica/");
+  await expect(link).toHaveAttribute("target", "_blank");
+});

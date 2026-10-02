@@ -4,7 +4,7 @@ import { getSession } from "@/lib/session";
 import LoginForm from "./login-form";
 
 export const metadata: Metadata = {
-  title: "Login · Admin",
+  title: "Login",
   robots: { index: false },
 };
 
@@ -18,7 +18,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/admincp/lo
       <div className="w-full max-w-sm animate-rise rounded-2xl border border-line bg-surface/90 p-8 shadow-sm backdrop-blur">
         <header className="mb-6 text-center">
           <h1 className="text-xl font-bold tracking-tight text-heading">Área reservada</h1>
-          <p className="mt-1 text-sm text-muted">Acesso exclusivo à organização da votação.</p>
+          <p className="mt-1 text-sm text-muted">Só para a organização da votação.</p>
         </header>
         <LoginForm from={typeof from === "string" ? from : undefined} />
       </div>

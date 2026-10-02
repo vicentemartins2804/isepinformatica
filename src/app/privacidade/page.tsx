@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Privacidade · Votação da Sweat",
-  description: "Que dados a votação da sweat de Engenharia Informática guarda, para quê e durante quanto tempo.",
+  title: "Privacidade",
+  description: "Que dados a votação da sweat de curso de Engenharia Informática guarda, para quê e durante quanto tempo.",
 };
 
 const section = "flex flex-col gap-2";
@@ -19,7 +19,7 @@ export default function PrivacyPage() {
           </Link>
           <h1 className="mt-3 text-2xl font-bold tracking-tight text-heading">Privacidade</h1>
           <p className="mt-1">
-            Esta votação é organizada pelos estudantes de Engenharia Informática do ISEP para escolher a sweat do curso.
+            Esta votação é organizada pelos estudantes de Engenharia Informática do ISEP para escolher a sweat de curso.
             Guardamos o mínimo possível e só para que cada pessoa vote uma vez.
           </p>
         </header>
@@ -57,8 +57,9 @@ export default function PrivacyPage() {
           <h2 className={h2}>Durante quanto tempo</h2>
           <ul className="list-disc space-y-1 pl-5">
             <li>
-              A identificação do dispositivo só é precisa enquanto a votação está aberta. Até 30 dias depois do fecho é
-              substituída por um valor sem qualquer ligação ao dispositivo, e o voto fica completamente anónimo.
+              A identificação do dispositivo só é precisa enquanto a votação está aberta. Até 30 dias depois do fecho, a
+              organização substitui-a por um valor sem qualquer ligação ao dispositivo, e o voto fica completamente
+              anónimo.
             </li>
             <li>Os votos anónimos (cor, design, data e hora) são guardados como registo do resultado.</li>
           </ul>
@@ -68,25 +69,17 @@ export default function PrivacyPage() {
           <h2 className={h2}>Mensagens de contacto</h2>
           <p>
             Se nos escreveres pela página de contacto, guardamos o nome (se o indicares), o email, o assunto, a mensagem
-            e a data. Servem só para te responder e são apagados automaticamente ao fim de 90 dias, ou antes, quando o
-            assunto fica resolvido.
+            e a data. Servem só para te responder.
           </p>
         </section>
 
         <section className={section}>
-          <h2 className={h2}>Área de administração</h2>
+          <h2 className={h2}>Onde ficam e quem vê</h2>
           <p>
-            Na área reservada à organização, registamos o endereço IP e o browser de cada tentativa de login, para
-            proteger o acesso (por exemplo, bloquear um IP depois de várias tentativas erradas). Estes registos são
-            apagados automaticamente ao fim de 90 dias.
-          </p>
-        </section>
-
-        <section className={section}>
-          <h2 className={h2}>Quem tem acesso</h2>
-          <p>
-            Só a organização da votação vê os votos, e os resultados são divulgados apenas em totais. Os dados ficam
-            alojados na Vercel (o site) e na Neon (a base de dados, num servidor na União Europeia, em Frankfurt).
+            Os dados ficam na Vercel (o site) e na Neon (a base de dados, em Frankfurt). Só a organização tem acesso, e
+            os resultados são divulgados apenas em totais. Os logins na área da organização ficam registados com o IP e
+            o browser, por segurança. Esses registos e as mensagens de contacto com mais de 90 dias são apagados quando a
+            organização volta a abrir o painel.
           </p>
         </section>
 
