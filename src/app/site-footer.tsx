@@ -15,6 +15,9 @@ export default function SiteFooter() {
           <Link href="/privacidade" className="hover:text-foreground">
             Privacidade
           </Link>
+          <Link href="/contacto" className="hover:text-foreground">
+            Contacto
+          </Link>
         </nav>
       </div>
     </footer>

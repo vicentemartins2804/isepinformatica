@@ -2,22 +2,26 @@ import type { Metadata } from "next";
 import {
   countIdentifiableVotes,
   getAuthLogs,
+  getContactMessages,
   getDashboard,
   getRecentVotes,
   getVoteTimeline,
   getVotingStatus,
   type AuthEvent,
   type AuthLogRow,
+  type ContactMessageRow,
   type Dashboard as DashboardData,
   type VoteRecord,
   type VotingStatus,
 } from "@/lib/db";
+import { CONTACT_TOPICS } from "@/lib/contact";
 import { COLOR_OPTIONS, DESIGN_OPTIONS } from "@/lib/options";
 import { qrSvg } from "@/lib/qr";
 import { requireSession } from "@/lib/session";
 import { getVotingUrl } from "@/lib/site-url";
 import { logout, logoutEverywhere } from "./actions";
 import Dashboard from "./dashboard";
+import MessagesSection, { type MessageRow } from "./messages-section";
 import PrivacySection from "./privacy-section";
 import QrSection from "./qr-section";
 import ScheduleForm from "./schedule-form";
@@ -43,7 +47,10 @@ const EVENT_LABELS: Record<AuthEvent, { label: string; className: string }> = {
   votos_anulados: { label: "Votos anulados", className: "bg-danger/10 text-danger" },
   votacao_reposta: { label: "Votação reposta", className: "bg-danger/10 text-danger" },
   dados_anonimizados: { label: "Dados anonimizados", className: "bg-accent-soft text-foreground" },
+  mensagens_apagadas: { label: "Mensagens apagadas", className: "bg-line text-foreground" },
 };
+
+const topicLabel = new Map<string, string>(CONTACT_TOPICS.map((t) => [t.id, t.label]));
 
 const RECENT_VOTES_LIMIT = 200;
 const colorById = new Map(COLOR_OPTIONS.map((c) => [c.id, c]));
@@ -129,14 +136,24 @@ function VotingStatusSection({ status }: { status: VotingStatus | null }) {
 
 export default async function AdminPage() {
   const session = await requireSession();
-  const [dashboard, status, logs, timeline, recentVotes, identifiable] = await Promise.all([
+  const [dashboard, status, logs, timeline, recentVotes, identifiable, messages] = await Promise.all([
     safely<DashboardData>("KPIs", getDashboard),
     safely<VotingStatus>("horário da votação", getVotingStatus),
     safely<AuthLogRow[]>("registo do painel", () => getAuthLogs(50)),
     safely("votos ao longo do tempo", getVoteTimeline),
     safely<VoteRecord[]>("votos recentes", () => getRecentVotes(RECENT_VOTES_LIMIT)),
     safely<number>("votos identificáveis", countIdentifiableVotes),
+    safely<ContactMessageRow[]>("mensagens de contacto", getContactMessages),
   ]);
+  const messageRows: MessageRow[] | null =
+    messages?.map((m) => ({
+      id: m.id,
+      time: dateFormat.format(m.createdAt),
+      name: m.name,
+      email: m.email,
+      topic: topicLabel.get(m.topic) ?? m.topic,
+      message: m.message,
+    })) ?? null;
   const voteRows: VoteRow[] = (recentVotes ?? []).map((v) => ({
     id: v.id,
     time: dateFormat.format(v.createdAt),
@@ -205,6 +222,8 @@ export default async function AdminPage() {
         )}
 
         <PrivacySection identifiable={identifiable} votingOpen={status?.open ?? false} votingEnded={votingEnded} />
+
+        <MessagesSection messages={messageRows} />
 
         <h2 className="mt-4 text-sm font-semibold uppercase tracking-wide text-muted">Conta</h2>
         <div className="grid gap-6">

@@ -10,6 +10,7 @@ import {
   anonymizeVotes,
   bumpSessionVersion,
   countRecentFailedLogins,
+  deleteContactMessages,
   deleteVotes,
   getAdmin,
   getVotingStatus,
@@ -188,4 +189,24 @@ export async function anonymizeData(): Promise<FormState> {
     console.error("Erro ao anonimizar os dados:", err);
     return { error: "Não foi possível anonimizar os dados. Tenta novamente." };
   }
+}
+
+/** Apaga as mensagens de contacto selecionadas (depois de respondidas). */
+export async function deleteSelectedMessages(_prev: FormState, formData: FormData): Promise<FormState> {
+  await requireSession();
+
+  const ids = formData.getAll("ids").filter((id): id is string => typeof id === "string" && /^\d+$/.test(id));
+  if (ids.length === 0) return { error: "Seleciona pelo menos uma mensagem." };
+
+  let deleted;
+  try {
+    deleted = await deleteContactMessages(ids);
+  } catch (err) {
+    console.error("Erro ao apagar mensagens:", err);
+    return { error: "Não foi possível apagar as mensagens. Tenta novamente." };
+  }
+
+  await logAuthEvent("mensagens_apagadas", `${deleted} mensagem(ns)`);
+  revalidatePath("/admincp");
+  return { success: `${deleted} mensagem(ns) apagada(s).` };
 }

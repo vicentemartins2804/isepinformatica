@@ -35,6 +35,7 @@ export default async function Home() {
       start={start?.toISOString() ?? null}
       deadline={deadline?.toISOString() ?? null}
       deadlineLabel={deadline ? dateFormat.format(deadline) : null}
+      startLabel={start ? dateFormat.format(start) : null}
     />
   );
 }

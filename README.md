@@ -13,7 +13,7 @@ Abre http://localhost:3000.
 
 ## Configuração da base de dados (Neon)
 
-1. **Criar as tabelas.** Põe o `DATABASE_URL` (role dona) no `.env.local` e corre `npm run db:setup`. O comando aplica o [`db/schema.sql`](db/schema.sql), que cria as tabelas `votos`, `admin` e `admin_logs`, a role `voto_anonimo` e as políticas de RLS. Pode ser corrido várias vezes sem problema.
+1. **Criar as tabelas.** Põe o `DATABASE_URL` (role dona) no `.env.local` e corre `npm run db:setup`. O comando aplica o [`db/schema.sql`](db/schema.sql), que cria as tabelas `votos`, `admin`, `admin_logs` e `mensagens` (formulário de contacto), a role `voto_anonimo` e as políticas de RLS. Pode ser corrido várias vezes sem problema.
    > Se preferires colar o SQL num editor e aparecer *"cannot insert multiple commands into a prepared statement"*, é porque o editor envia o script inteiro como um só comando. Usa o `npm run db:setup` ou corre os comandos um a um.
 2. **Dar uma password à role votante.** Gera uma password forte e corre:
    ```sql

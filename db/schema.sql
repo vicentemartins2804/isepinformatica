@@ -28,7 +28,8 @@ CREATE TABLE IF NOT EXISTS admin (
 CREATE TABLE IF NOT EXISTS admin_logs (
   id         BIGINT      GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   evento     TEXT        NOT NULL,  -- login_sucesso, login_falhado, login_bloqueado, logout, logout_global,
-                                    -- votos_anulados, votacao_reposta, dados_anonimizados
+                                    -- votos_anulados, votacao_reposta, dados_anonimizados,
+                                    -- mensagens_apagadas
   ip         TEXT,
   user_agent TEXT,
   detalhe    TEXT,
@@ -86,6 +87,29 @@ CREATE OR REPLACE FUNCTION votacao_aberta() RETURNS BOOLEAN
        AND COALESCE(now() >= votacao_inicio(), true)
   $$;
 
+-- ─── Contacto: mensagens enviadas pelo formulário /contacto ──────────────────
+-- Apagadas automaticamente ao fim de 90 dias (RGPD), sempre que o painel as lê.
+CREATE TABLE IF NOT EXISTS mensagens (
+  id        BIGINT      GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  nome      TEXT        CHECK (char_length(nome) <= 100),
+  email     TEXT        NOT NULL CHECK (char_length(email) BETWEEN 3 AND 254),
+  assunto   TEXT        NOT NULL CHECK (assunto IN ('duvida', 'rgpd', 'outro')),
+  mensagem  TEXT        NOT NULL CHECK (char_length(mensagem) BETWEEN 1 AND 2000),
+  criado_em TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS mensagens_criado_em_idx ON mensagens (criado_em DESC);
+CREATE INDEX IF NOT EXISTS mensagens_email_idx ON mensagens (email, criado_em DESC);
+
+-- Limite anti-spam: no máximo 3 mensagens por email e 30 no total, por hora. SECURITY DEFINER
+-- para a role votante poder contar sem ter acesso de leitura à tabela.
+CREATE OR REPLACE FUNCTION mensagem_permitida(remetente TEXT) RETURNS BOOLEAN
+  LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public
+  AS $$
+    SELECT (SELECT COUNT(*) FROM mensagens
+             WHERE lower(email) = lower(remetente) AND criado_em > now() - interval '1 hour') < 3
+       AND (SELECT COUNT(*) FROM mensagens WHERE criado_em > now() - interval '1 hour') < 30
+  $$;
+
 -- ─── US08: KPIs (para o dashboard ou consultas diretas no SQL Editor) ───────
 CREATE OR REPLACE VIEW votos_por_cor AS
   SELECT cor, COUNT(*)::int AS votos,
@@ -118,9 +142,10 @@ ALTER TABLE votos        ENABLE ROW LEVEL SECURITY;
 ALTER TABLE admin        ENABLE ROW LEVEL SECURITY;
 ALTER TABLE admin_logs   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE configuracao ENABLE ROW LEVEL SECURITY;
+ALTER TABLE mensagens    ENABLE ROW LEVEL SECURITY;
 
-REVOKE ALL ON votos, admin, admin_logs, configuracao FROM PUBLIC;
-REVOKE ALL ON votos, admin, admin_logs, configuracao FROM voto_anonimo;
+REVOKE ALL ON votos, admin, admin_logs, configuracao, mensagens FROM PUBLIC;
+REVOKE ALL ON votos, admin, admin_logs, configuracao, mensagens FROM voto_anonimo;
 REVOKE ALL ON votos_por_cor, votos_por_design, votos_por_combinacao FROM PUBLIC;
 REVOKE ALL ON votos_por_cor, votos_por_design, votos_por_combinacao FROM voto_anonimo;
 
@@ -140,3 +165,14 @@ CREATE POLICY votos_insert_anonimo ON votos
 
 -- Não existe nenhuma política de SELECT, UPDATE ou DELETE, e a role também não tem esses
 -- privilégios: qualquer leitura ou alteração feita por `voto_anonimo` é recusada.
+
+-- Contacto: a mesma role só pode inserir mensagens, dentro do limite anti-spam. Acima do
+-- limite, a inserção falha com o erro 42501 (violação de RLS).
+REVOKE ALL ON FUNCTION mensagem_permitida(TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION mensagem_permitida(TEXT) TO voto_anonimo;
+GRANT INSERT (nome, email, assunto, mensagem) ON mensagens TO voto_anonimo;
+
+DROP POLICY IF EXISTS mensagens_insert_anonimo ON mensagens;
+CREATE POLICY mensagens_insert_anonimo ON mensagens
+  FOR INSERT TO voto_anonimo
+  WITH CHECK (mensagem_permitida(email));

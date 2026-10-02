@@ -1,5 +1,6 @@
 import "server-only";
 import { neon, type NeonQueryFunction } from "@neondatabase/serverless";
+import type { ContactMessage } from "./contact";
 
 type Sql = NeonQueryFunction<false, false>;
 
@@ -116,7 +117,8 @@ export type AuthEvent =
   | "password_alterada" // eventos antigos, de quando dava para mudar a password no painel
   | "votos_anulados"
   | "votacao_reposta"
-  | "dados_anonimizados";
+  | "dados_anonimizados"
+  | "mensagens_apagadas";
 
 /** Quanto tempo se guardam os registos do painel (RGPD). */
 const LOG_RETENTION_DAYS = 90;
@@ -280,4 +282,49 @@ export async function anonymizeVotes(): Promise<number> {
 export async function countIdentifiableVotes(): Promise<number> {
   const rows = await getSql()`SELECT COUNT(*)::int AS n FROM votos WHERE visitor_id NOT LIKE 'anonimizado-%'`;
   return rows[0].n;
+}
+
+export type InsertMessageResult = "ok" | "rate_limited";
+
+/** Grava uma mensagem do formulário de contacto, com a role votante (só pode inserir). */
+export async function insertContactMessage(msg: ContactMessage): Promise<InsertMessageResult> {
+  try {
+    await getVoterSql()`
+      INSERT INTO mensagens (nome, email, assunto, mensagem)
+      VALUES (${msg.name}, ${msg.email}, ${msg.topic}, ${msg.message})
+    `;
+    return "ok";
+  } catch (err) {
+    // A política de RLS recusa a inserção acima do limite anti-spam.
+    if ((err as { code?: unknown } | null)?.code === INSUFFICIENT_PRIVILEGE) return "rate_limited";
+    throw err;
+  }
+}
+
+/** Quanto tempo se guardam as mensagens de contacto (RGPD). */
+const MESSAGE_RETENTION_DAYS = 90;
+
+export type ContactMessageRow = ContactMessage & { id: string; createdAt: Date };
+
+/** Mensagens de contacto, das mais recentes para as mais antigas. Apaga antes as que passaram o prazo. */
+export async function getContactMessages(): Promise<ContactMessageRow[]> {
+  const sql = getSql();
+  const [, rows] = await sql.transaction([
+    sql`DELETE FROM mensagens WHERE criado_em < now() - make_interval(days => ${MESSAGE_RETENTION_DAYS})`,
+    sql`SELECT id, nome, email, assunto, mensagem, criado_em FROM mensagens ORDER BY criado_em DESC, id DESC`,
+  ]);
+  return rows.map((r) => ({
+    id: String(r.id),
+    name: r.nome,
+    email: r.email,
+    topic: r.assunto,
+    message: r.mensagem,
+    createdAt: new Date(r.criado_em),
+  }));
+}
+
+/** Apaga as mensagens indicadas. Devolve quantas foram apagadas. */
+export async function deleteContactMessages(ids: string[]): Promise<number> {
+  const rows = await getSql()`DELETE FROM mensagens WHERE id = ANY(${ids}::bigint[]) RETURNING id`;
+  return rows.length;
 }

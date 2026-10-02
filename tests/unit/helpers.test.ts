@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { MESSAGE_MAX, parseContactForm } from "@/lib/contact";
 import { csvField, toCsv } from "@/lib/csv";
+import { formatRemaining } from "@/lib/countdown";
 import { mockupImageBox } from "@/lib/mockup-view";
 import { safeRedirectTarget } from "@/lib/redirect";
 import { fillHours, HOUR_MS } from "@/lib/timeline";
@@ -87,5 +89,52 @@ describe("mockupImageBox (ver frente e costas)", () => {
 
   it("metades mais largas do que altas ocupam a largura toda", () => {
     expect(mockupImageBox(4, "back")).toEqual({ left: -100, top: 25, width: 200, height: 50 });
+  });
+});
+
+describe("parseContactForm (formulário de contacto)", () => {
+  const valid = { name: " Ana ", email: "ana@isep.ipp.pt", topic: "rgpd", message: " Quero apagar os meus dados. " };
+
+  it("aceita uma mensagem válida e limpa os espaços", () => {
+    expect(parseContactForm(valid)).toEqual({
+      ok: true,
+      value: { name: "Ana", email: "ana@isep.ipp.pt", topic: "rgpd", message: "Quero apagar os meus dados." },
+    });
+  });
+
+  it("o nome é opcional", () => {
+    const result = parseContactForm({ ...valid, name: "  " });
+    expect(result.ok && result.value.name).toBeNull();
+  });
+
+  it.each([
+    ["sem email", { email: "" }],
+    ["um email inválido", { email: "ana@isep" }],
+    ["um assunto desconhecido", { topic: "spam" }],
+    ["uma mensagem vazia", { message: "   " }],
+    ["uma mensagem longa demais", { message: "x".repeat(MESSAGE_MAX + 1) }],
+    ["um nome longo demais", { name: "x".repeat(101) }],
+  ])("recusa %s", (_label, change) => {
+    expect(parseContactForm({ ...valid, ...change }).ok).toBe(false);
+  });
+});
+
+describe("formatRemaining (contagem decrescente)", () => {
+  const s = 1000;
+  const min = 60 * s;
+  const h = 60 * min;
+  const d = 24 * h;
+
+  it.each([
+    [2 * d + 4 * h + 30 * min, "2 dias e 4 h"],
+    [1 * d + 5 * min, "1 dia"],
+    [1 * d + 1 * h, "1 dia e 1 h"],
+    [4 * h + 12 * min + 59 * s, "4 h e 12 min"],
+    [3 * h, "3 h"],
+    [12 * min + 5 * s, "12 min e 05 s"],
+    [45 * s + 999, "45 s"],
+    [-5 * s, "0 s"],
+  ])("%i ms → %s", (ms, expected) => {
+    expect(formatRemaining(ms)).toBe(expected);
   });
 });

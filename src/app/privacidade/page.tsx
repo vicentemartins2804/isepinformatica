@@ -65,6 +65,15 @@ export default function PrivacyPage() {
         </section>
 
         <section className={section}>
+          <h2 className={h2}>Mensagens de contacto</h2>
+          <p>
+            Se nos escreveres pela página de contacto, guardamos o nome (se o indicares), o email, o assunto, a mensagem
+            e a data. Servem só para te responder e são apagados automaticamente ao fim de 90 dias, ou antes, quando o
+            assunto fica resolvido.
+          </p>
+        </section>
+
+        <section className={section}>
           <h2 className={h2}>Área de administração</h2>
           <p>
             Na área reservada à organização, registamos o endereço IP e o browser de cada tentativa de login, para
@@ -85,8 +94,12 @@ export default function PrivacyPage() {
           <h2 className={h2}>Os teus direitos</h2>
           <p>
             Ao abrigo do RGPD, podes pedir acesso, correção ou eliminação dos teus dados, ou opor-te ao seu tratamento,
-            contactando a organização da votação através dos canais habituais do curso. Também podes apresentar
-            reclamação à Comissão Nacional de Proteção de Dados (CNPD).
+            enviando uma mensagem à organização da votação pela{" "}
+            <Link href="/contacto" className="text-accent underline underline-offset-2 hover:text-accent-hover">
+              página de contacto
+            </Link>{" "}
+            (assunto &quot;Pedido sobre os meus dados&quot;). Também podes apresentar reclamação à Comissão Nacional de
+            Proteção de Dados (CNPD).
           </p>
         </section>
       </article>

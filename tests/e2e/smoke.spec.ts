@@ -57,3 +57,19 @@ test.describe("área de administração sem sessão", () => {
     });
   }
 });
+
+test("o rodapé leva à página de contacto, com o formulário", async ({ page }) => {
+  await page.goto("/privacidade");
+  await page.getByRole("contentinfo").getByRole("link", { name: "Contacto" }).click();
+  await expect(page).toHaveURL(/\/contacto$/);
+  await expect(page.getByRole("heading", { level: 1, name: "Contacta-nos" })).toBeVisible();
+  await expect(page.getByLabel("Email")).toBeVisible();
+  await expect(page.getByLabel("Assunto")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Enviar mensagem" })).toBeVisible();
+});
+
+test("a página de privacidade indica o contacto para exercer os direitos", async ({ page }) => {
+  await page.goto("/privacidade");
+  await page.getByRole("link", { name: "página de contacto" }).click();
+  await expect(page).toHaveURL(/\/contacto$/);
+});

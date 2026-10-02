@@ -182,3 +182,47 @@ describe("KPIs e gestão de votos (US08)", () => {
     expect(await vote("a")).toBeNull();
   });
 });
+
+describe("mensagens de contacto", () => {
+  function message(email = "aluno@isep.ipp.pt", mensagem = "Olá!") {
+    return errorCode("INSERT INTO mensagens (nome, email, assunto, mensagem) VALUES ($1, $2, $3, $4)", [
+      "Aluno",
+      email,
+      "duvida",
+      mensagem,
+    ]);
+  }
+
+  beforeEach(asVoter);
+
+  it("a role votante grava mensagens mesmo sem votação aberta", async () => {
+    expect(await message()).toBeNull();
+  });
+
+  it("a role votante não lê, altera nem apaga mensagens", async () => {
+    expect(await message()).toBeNull();
+    expect(await errorCode("SELECT * FROM mensagens")).toBe("42501");
+    expect(await errorCode("UPDATE mensagens SET mensagem = 'x'")).toBe("42501");
+    expect(await errorCode("DELETE FROM mensagens")).toBe("42501");
+  });
+
+  it("recusa assuntos desconhecidos e mensagens vazias ou longas demais", async () => {
+    expect(
+      await errorCode("INSERT INTO mensagens (email, assunto, mensagem) VALUES ('a@b.pt', 'spam', 'x')"),
+    ).toBe("23514");
+    expect(await message("a@b.pt", "")).toBe("23514");
+    expect(await message("a@b.pt", "x".repeat(2001))).toBe("23514");
+  });
+
+  it("aceita 3 mensagens por email por hora e recusa a quarta (42501)", async () => {
+    for (let i = 0; i < 3; i++) expect(await message("Repetido@isep.ipp.pt")).toBeNull();
+    // O limite não distingue maiúsculas de minúsculas no email.
+    expect(await message("repetido@isep.ipp.pt")).toBe("42501");
+    expect(await message("outro@isep.ipp.pt")).toBeNull();
+  });
+
+  it("recusa mais de 30 mensagens por hora no total", async () => {
+    for (let i = 0; i < 30; i++) expect(await message(`aluno${i}@isep.ipp.pt`)).toBeNull();
+    expect(await message("aluno30@isep.ipp.pt")).toBe("42501");
+  });
+});

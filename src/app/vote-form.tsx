@@ -9,6 +9,7 @@ import { DUPLICATE_VOTE_MESSAGE } from "@/lib/messages";
 import type { Mockup } from "@/lib/mockups";
 import { mockupImageBox, type MockupSide } from "@/lib/mockup-view";
 import { submitVote, type VoteState } from "./actions";
+import Countdown from "./countdown";
 import VotingModal from "./voting-modal";
 
 async function vote(prev: VoteState, formData: FormData): Promise<VoteState> {
@@ -61,11 +62,21 @@ type VoteFormProps = {
   deadline: string | null;
   /** Prazo já formatado em hora de Lisboa, para mostrar ao estudante. */
   deadlineLabel: string | null;
+  /** Abertura já formatada em hora de Lisboa, ou null se não houver abertura programada. */
+  startLabel: string | null;
 };
 
 const noopSubscribe = () => () => {};
 
-export default function VoteForm({ mockups, phase, round, start, deadline, deadlineLabel }: VoteFormProps) {
+export default function VoteForm({
+  mockups,
+  phase,
+  round,
+  start,
+  deadline,
+  deadlineLabel,
+  startLabel,
+}: VoteFormProps) {
   // Lido do localStorage depois da hidratação (no servidor é sempre `false`).
   const votedOnThisDevice = useSyncExternalStore(
     noopSubscribe,
@@ -100,7 +111,12 @@ export default function VoteForm({ mockups, phase, round, start, deadline, deadl
   // (sem horário definido ou depois do fecho, que mostram a mesma mensagem).
   let modal: React.ReactNode = null;
   if (livePhase === "upcoming") {
-    modal = <VotingModal title="A votação ainda não abriu" />;
+    modal = (
+      <VotingModal title="A votação ainda não abriu">
+        {startLabel && <p>Abre a {startLabel}.</p>}
+        {start && <Countdown target={start} prefix="Faltam" className="mt-1" />}
+      </VotingModal>
+    );
   } else if (closed) {
     modal = (
       <VotingModal title="Não há nenhuma votação aberta">
@@ -198,6 +214,7 @@ export default function VoteForm({ mockups, phase, round, start, deadline, deadl
               Votação aberta até <span className="font-medium text-foreground">{deadlineLabel}</span>.
             </p>
           )}
+          {deadline && <Countdown target={deadline} prefix="Fecha em" className="mt-1 text-sm text-muted" />}
         </header>
 
         <div className="grid items-center gap-8 md:grid-cols-2">
