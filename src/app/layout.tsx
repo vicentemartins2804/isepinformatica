@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { getSiteOrigin } from "@/lib/site-url";
 import Background1852 from "./background-1852";
 import SiteFooter from "./site-footer";
 import "./globals.css";
@@ -17,11 +18,9 @@ const geistMono = Geist_Mono({
 const TITLE = "ISEP Informática";
 const DESCRIPTION = "Escolhe a cor e o design da sweat de curso de Engenharia Informática do ISEP.";
 
-// Os links de pré-visualização (WhatsApp, Discord) precisam de URLs absolutos. Na Vercel
-// usa-se o domínio de produção; localmente, o servidor de desenvolvimento.
-const siteUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL
-  ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
-  : "http://localhost:3000";
+// Os links de pré-visualização (WhatsApp, Discord) precisam de URLs absolutos: o domínio
+// público (SITE_URL ou o da Vercel); localmente, o servidor de desenvolvimento.
+const siteUrl = getSiteOrigin() ?? "http://localhost:3000";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),

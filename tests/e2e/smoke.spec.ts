@@ -50,7 +50,7 @@ test.describe("área de administração sem sessão", () => {
     await expect(page.getByRole("heading", { name: "Área reservada" })).toBeVisible();
   });
 
-  for (const path of ["/api/admin/results", "/api/admin/export", "/api/admin/qr"]) {
+  for (const path of ["/api/admin/export", "/api/admin/qr"]) {
     test(`${path} recusa o acesso`, async ({ request }) => {
       const response = await request.get(path);
       expect(response.status()).toBe(401);

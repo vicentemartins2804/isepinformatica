@@ -1,4 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+// site-url.ts importa "server-only", que só pode ser carregado no servidor do Next.
+vi.mock("server-only", () => ({}));
 import { MESSAGE_MAX, parseContactForm } from "@/lib/contact";
 import { csvField, toCsv } from "@/lib/csv";
 import { formatRemaining } from "@/lib/countdown";
@@ -72,12 +75,12 @@ describe("fillHours (gráfico de votos por hora)", () => {
 });
 
 describe("parseContactForm (formulário de contacto)", () => {
-  const valid = { name: " Ana ", email: "ana@isep.ipp.pt", topic: "rgpd", message: " Quero apagar os meus dados. " };
+  const valid = { name: " Ana ", email: "ana@example.com", topic: "rgpd", message: " Quero apagar os meus dados. " };
 
   it("aceita uma mensagem válida e limpa os espaços", () => {
     expect(parseContactForm(valid)).toEqual({
       ok: true,
-      value: { name: "Ana", email: "ana@isep.ipp.pt", topic: "rgpd", message: "Quero apagar os meus dados." },
+      value: { name: "Ana", email: "ana@example.com", topic: "rgpd", message: "Quero apagar os meus dados." },
     });
   });
 
@@ -166,5 +169,32 @@ describe("resolveMockupView (imagens a mostrar)", () => {
     expect(view.missing).toEqual(["design-2-bordo-frente"]);
     expect(imagesForSide(view, "both").map((i) => i.src)).toEqual(["costas"]);
     expect(imagesForSide(view, "front")).toEqual([]);
+  });
+});
+
+describe("getSiteOrigin (domínio público)", () => {
+  const env = { ...process.env };
+  afterEach(() => {
+    process.env = { ...env };
+  });
+
+  it("SITE_URL manda sobre o domínio escolhido pela Vercel", async () => {
+    process.env.SITE_URL = "https://www.isepinformatica.pt/";
+    process.env.VERCEL_PROJECT_PRODUCTION_URL = "isepinformatica.vercel.app";
+    const { getSiteOrigin } = await import("@/lib/site-url");
+    expect(getSiteOrigin()).toBe("https://www.isepinformatica.pt");
+  });
+
+  it("aceita SITE_URL sem https://", async () => {
+    process.env.SITE_URL = "www.isepinformatica.pt";
+    const { getSiteOrigin } = await import("@/lib/site-url");
+    expect(getSiteOrigin()).toBe("https://www.isepinformatica.pt");
+  });
+
+  it("sem SITE_URL, usa o domínio da Vercel", async () => {
+    delete process.env.SITE_URL;
+    process.env.VERCEL_PROJECT_PRODUCTION_URL = "isepinformatica.vercel.app";
+    const { getSiteOrigin } = await import("@/lib/site-url");
+    expect(getSiteOrigin()).toBe("https://isepinformatica.vercel.app");
   });
 });
