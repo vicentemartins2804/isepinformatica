@@ -167,7 +167,7 @@ export default async function AdminPage() {
   const votingEnded = !!status && !status.open && !status.upcoming && status.deadline !== null;
 
   return (
-    <main className="flex flex-1 justify-center px-6 py-12">
+    <main className="flex flex-1 justify-center px-4 py-8 sm:px-6 sm:py-12">
       <div className="flex w-full max-w-4xl animate-rise flex-col gap-6">
         <header className="flex flex-wrap items-center justify-between gap-4">
           <div>

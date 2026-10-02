@@ -11,8 +11,8 @@ const h2 = "text-base font-semibold text-heading";
 
 export default function PrivacyPage() {
   return (
-    <main className="flex flex-1 justify-center px-6 py-12">
-      <article className="flex w-full max-w-2xl animate-rise flex-col gap-6 rounded-2xl border border-line bg-surface/90 p-8 text-sm leading-relaxed text-muted shadow-sm backdrop-blur">
+    <main className="flex flex-1 justify-center px-4 py-8 sm:px-6 sm:py-12">
+      <article className="flex w-full max-w-2xl animate-rise flex-col gap-6 rounded-2xl border border-line bg-surface/90 p-6 text-sm leading-relaxed sm:p-8 text-muted shadow-sm backdrop-blur">
         <header>
           <Link href="/" className="text-xs font-medium text-accent hover:underline">
             ← Voltar à votação

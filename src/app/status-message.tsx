@@ -9,7 +9,7 @@ export default function StatusMessage({
   children?: React.ReactNode;
 }) {
   return (
-    <main className="flex flex-1 items-center justify-center px-6 py-16">
+    <main className="flex flex-1 items-center justify-center px-4 py-12 sm:px-6 sm:py-16">
       <section className="flex max-w-sm animate-rise flex-col items-center gap-2 text-center">
         <p className="text-xs font-semibold uppercase tracking-[0.3em] text-accent">{code}</p>
         <h1 className="text-2xl font-bold tracking-tight text-heading">{title}</h1>

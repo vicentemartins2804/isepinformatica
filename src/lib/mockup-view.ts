@@ -1,30 +1,53 @@
-/** Que parte do mockup mostrar: a imagem inteira, só a frente (metade esquerda) ou só as costas (metade direita). */
+import { mockupKey } from "./options";
+
+/** Que parte da sweat mostrar: a frente e as costas lado a lado, só a frente ou só as costas. */
 export type MockupSide = "both" | "front" | "back";
 
-/** Posição e tamanho da imagem dentro da caixa quadrada, em percentagem da caixa. */
-export type ImageBox = { left: number; top: number; width: number; height: number };
+export type MockupImage = {
+  src: string;
+  /** Proporção largura / altura da área recortada (só a sweat). */
+  aspect: number;
+  /** Cor do fundo da foto, para o painel se fundir com a imagem; vazio se for transparente. */
+  background: string;
+  /** Área ocupada pela sweat, em frações da imagem inteira (sem a margem à volta). */
+  crop: { left: number; top: number; width: number; height: number };
+};
+
+export type MockupView = {
+  front?: MockupImage;
+  back?: MockupImage;
+  /** A imagem das costas mostrada é a da versão finalista. */
+  finalistShown: boolean;
+  /** Ficheiros esperados em public/mockups que não existem (sem extensão). */
+  missing: string[];
+};
 
 /**
- * Calcula onde pôr a imagem (de proporção `aspect` = largura / altura) numa caixa quadrada
- * para mostrar a parte pedida, centrada e sem deformar. Os mockups têm a frente na metade
- * esquerda e as costas na metade direita.
+ * Escolhe as imagens de uma combinação. A versão finalista só muda as costas (a frente é
+ * igual); se faltar a imagem finalista, mostram-se as costas normais.
  */
-export function mockupImageBox(aspect: number, side: MockupSide): ImageBox {
-  if (side === "both") {
-    // Igual a object-fit: contain.
-    return aspect >= 1
-      ? { left: 0, top: (100 - 100 / aspect) / 2, width: 100, height: 100 / aspect }
-      : { left: (100 - 100 * aspect) / 2, top: 0, width: 100 * aspect, height: 100 };
-  }
+export function resolveMockupView(
+  mockups: Record<string, MockupImage>,
+  designId: string,
+  colorId: string,
+  finalist: boolean,
+): MockupView {
+  const frontKey = mockupKey(designId, colorId, "frente");
+  const backKey = mockupKey(designId, colorId, "costas");
+  const finalistKey = mockupKey(designId, colorId, "costas", true);
 
-  const halfAspect = aspect / 2;
-  if (halfAspect <= 1) {
-    // A metade é mais alta do que larga: ocupa a altura toda e centra-se na horizontal.
-    const halfWidth = 100 * halfAspect;
-    const left = (100 - halfWidth) / 2 - (side === "back" ? halfWidth : 0);
-    return { left, top: 0, width: 100 * aspect, height: 100 };
-  }
-  // A metade é mais larga do que alta: ocupa a largura toda e centra-se na vertical.
-  const height = 200 / aspect;
-  return { left: side === "back" ? -100 : 0, top: (100 - height) / 2, width: 200, height };
+  const missing = [frontKey, backKey, ...(finalist ? [finalistKey] : [])].filter((key) => !mockups[key]);
+  const finalistShown = finalist && !!mockups[finalistKey];
+  return {
+    front: mockups[frontKey],
+    back: finalistShown ? mockups[finalistKey] : mockups[backKey],
+    finalistShown,
+    missing,
+  };
+}
+
+/** As imagens a mostrar para a parte escolhida, pela ordem em que aparecem. */
+export function imagesForSide(view: MockupView, side: MockupSide): MockupImage[] {
+  const images = side === "front" ? [view.front] : side === "back" ? [view.back] : [view.front, view.back];
+  return images.filter((image): image is MockupImage => !!image);
 }

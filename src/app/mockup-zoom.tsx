@@ -1,22 +1,19 @@
 "use client";
 
-import Image from "next/image";
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import type { MockupSide } from "@/lib/mockup-view";
+import type { MockupImage } from "@/lib/mockup-view";
+import MockupImages from "./mockup-images";
 
 type MockupZoomProps = {
-  src: string;
-  alt: string;
-  /** Proporção largura / altura da imagem inteira (frente à esquerda, costas à direita). */
-  aspect: number;
-  side: MockupSide;
+  /** Uma imagem (frente ou costas) ou duas lado a lado (ambos). */
+  images: (MockupImage & { alt: string })[];
   background?: string;
   onClose: () => void;
 };
 
 /** Mockup ampliado por cima da página. Fecha com um clique, com Esc ou no botão ✕. */
-export default function MockupZoom({ src, alt, aspect, side, background, onClose }: MockupZoomProps) {
+export default function MockupZoom({ images, background, onClose }: MockupZoomProps) {
   const closeRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -34,8 +31,9 @@ export default function MockupZoom({ src, alt, aspect, side, background, onClose
     };
   }, [onClose]);
 
-  // Na frente ou nas costas mostra-se só metade da imagem: a caixa tem metade da largura.
-  const boxAspect = side === "both" ? aspect : aspect / 2;
+  // As imagens ficam lado a lado, com espaço entre elas e à volta (o padding de 5%).
+  const contentAspect = images.reduce((sum, image) => sum + image.aspect, 0) + 0.06 * (images.length - 1);
+  const boxAspect = contentAspect * 1.1;
 
   // No <body>, fora do formulário: as animações dos elementos de cima (transform) prenderiam
   // o `position: fixed` à caixa do formulário em vez do ecrã.
@@ -44,24 +42,19 @@ export default function MockupZoom({ src, alt, aspect, side, background, onClose
     <div
       role="dialog"
       aria-modal="true"
-      aria-label={alt}
+      aria-label={images.map((image) => image.alt).join(" e ")}
       onClick={onClose}
       className="fixed inset-0 z-[70] flex cursor-zoom-out items-center justify-center bg-foreground/70 p-4 backdrop-blur-sm animate-fade-in"
     >
       <div
-        className="relative overflow-hidden rounded-2xl shadow-2xl animate-rise"
+        className="overflow-hidden rounded-2xl bg-surface p-[5%] shadow-2xl animate-rise"
         style={{
           aspectRatio: boxAspect,
           width: `min(92vw, calc(88vh * ${boxAspect}))`,
           backgroundColor: background || undefined,
         }}
       >
-        <div
-          className="absolute inset-y-0"
-          style={{ left: side === "back" ? "-100%" : 0, width: side === "both" ? "100%" : "200%" }}
-        >
-          <Image src={src} alt={alt} fill sizes="184vw" className="object-fill" />
-        </div>
+        <MockupImages images={images} sizes={`${Math.round(92 / images.length)}vw`} />
       </div>
       <button
         ref={closeRef}

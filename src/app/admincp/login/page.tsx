@@ -14,7 +14,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/admincp/lo
   const { from } = await searchParams;
 
   return (
-    <main className="flex flex-1 items-center justify-center px-6 py-12">
+    <main className="flex flex-1 items-center justify-center px-4 py-8 sm:px-6 sm:py-12">
       <div className="w-full max-w-sm animate-rise rounded-2xl border border-line bg-surface/90 p-8 shadow-sm backdrop-blur">
         <header className="mb-6 text-center">
           <h1 className="text-xl font-bold tracking-tight text-heading">Área reservada</h1>

@@ -1,7 +1,7 @@
 import { ImageResponse } from "next/og";
 
 // Imagem de pré-visualização ao partilhar o link (WhatsApp, Discord, etc.).
-export const alt = "Engenharia Informática · ISEP: votação da sweat do curso";
+export const alt = "Engenharia Informática · ISEP: votação da sweat de curso";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 

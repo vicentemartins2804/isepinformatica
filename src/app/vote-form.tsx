@@ -1,14 +1,13 @@
 "use client";
 
-import Image from "next/image";
 import { useActionState, useCallback, useEffect, useState, useSyncExternalStore } from "react";
-import { COLOR_OPTIONS, DESIGN_OPTIONS, mockupKey } from "@/lib/options";
+import { COLOR_OPTIONS, DESIGN_OPTIONS } from "@/lib/options";
 import { getVisitorId, hasVotedLocally, markVotedLocally } from "@/lib/fingerprint";
 import { DUPLICATE_VOTE_MESSAGE } from "@/lib/messages";
-import type { Mockup } from "@/lib/mockups";
-import { mockupImageBox, type MockupSide } from "@/lib/mockup-view";
+import { imagesForSide, resolveMockupView, type MockupImage, type MockupSide } from "@/lib/mockup-view";
 import { submitVote, type VoteState } from "./actions";
 import Countdown from "./countdown";
+import MockupImages from "./mockup-images";
 import MockupZoom from "./mockup-zoom";
 import VotingModal from "./voting-modal";
 
@@ -52,7 +51,7 @@ const MAX_TIMEOUT_MS = 2 ** 31 - 1;
 export type VotingPhase = "none" | "upcoming" | "open" | "closed";
 
 type VoteFormProps = {
-  mockups: Record<string, Mockup>;
+  mockups: Record<string, MockupImage>;
   phase: VotingPhase;
   /** Ronda atual da votação; a marca "já votei" do browser só conta para esta ronda. */
   round: number;
@@ -148,20 +147,19 @@ export default function VoteForm({
   // O mockup mostra a combinação default até o estudante escolher; o voto exige escolha explícita.
   const previewColor = color ?? COLOR_OPTIONS[0];
   const previewDesign = design ?? DESIGN_OPTIONS[0];
-  const normalKey = mockupKey(previewDesign.id, previewColor.id);
-  const finalistKey = mockupKey(previewDesign.id, previewColor.id, true);
-  // Versão finalista: só muda a imagem. Sem o ficheiro finalista, mostra a versão normal.
-  const finalistMissing = finalist && !mockups[finalistKey];
-  const previewKey = finalist && !finalistMissing ? finalistKey : normalKey;
-  const mockup = mockups[previewKey];
-  const mockupAlt = `Sweat ${previewDesign.name} em ${previewColor.name}${
-    previewKey === finalistKey ? ", versão finalista" : ""
-  }${side === "front" ? ", frente" : side === "back" ? ", costas" : ""}`;
-  const imageBox = mockup ? mockupImageBox(mockup.aspect, side) : null;
+  // Versão finalista: só muda as costas. Sem o ficheiro finalista, mostra as costas normais.
+  const view = resolveMockupView(mockups, previewDesign.id, previewColor.id, finalist);
+  const hasMockup = !!(view.front || view.back);
+  const describe = (image: MockupImage) =>
+    `Sweat ${previewDesign.name} em ${previewColor.name}, ${
+      image === view.front ? "frente" : view.finalistShown ? "costas, versão finalista" : "costas"
+    }`;
+  const shownImages = imagesForSide(view, side).map((image) => ({ ...image, alt: describe(image) }));
+  const viewKey = `${previewDesign.id}-${previewColor.id}-${side}-${view.finalistShown}`;
 
   if (state.status === "success") {
     return (
-      <main className="flex flex-1 items-center justify-center px-6 py-16">
+      <main className="flex flex-1 items-center justify-center px-4 py-12 sm:px-6 sm:py-16">
         <section role="status" className="flex max-w-sm animate-rise flex-col items-center gap-2 text-center">
           <h1 className="text-2xl font-semibold tracking-tight">
             Obrigado<span className="text-accent">!</span>
@@ -178,7 +176,7 @@ export default function VoteForm({
   // Este dispositivo já votou nesta ronda: mostra-o logo, em vez do formulário.
   if (livePhase === "open" && (votedOnThisDevice || state.alreadyVoted)) {
     return (
-      <main className="flex flex-1 items-center justify-center px-6 py-16">
+      <main className="flex flex-1 items-center justify-center px-4 py-12 sm:px-6 sm:py-16">
         <section role="status" className="flex max-w-sm animate-rise flex-col items-center gap-2 text-center">
           <h1 className="text-2xl font-semibold tracking-tight">
             Já votaste, obrigado<span className="text-accent">!</span>
@@ -197,7 +195,7 @@ export default function VoteForm({
   return (
     <>
     {modal}
-    <main inert={modal !== null} className="flex flex-1 items-center justify-center px-6 py-12">
+    <main inert={modal !== null} className="flex flex-1 items-center justify-center px-4 py-8 sm:px-6 sm:py-12">
       <form
         action={formAction}
         // Gera o visitor_id logo na primeira interação, para a submissão não ter de esperar.
@@ -210,7 +208,7 @@ export default function VoteForm({
         <input type="hidden" name="round" value={round} />
 
         <header className="flex flex-col items-center text-center">
-          <h1 className="bg-gradient-to-r from-heading via-accent to-accent-light bg-clip-text pb-1 text-4xl font-extrabold tracking-tight text-transparent sm:text-5xl">
+          <h1 className="bg-gradient-to-r from-heading via-accent to-accent-light bg-clip-text pb-1 text-3xl font-extrabold tracking-tight text-transparent min-[400px]:text-4xl sm:text-5xl">
             Engenharia Informática
           </h1>
           <p className="mt-2 flex items-center gap-3 text-sm font-semibold tracking-[0.4em] text-heading">
@@ -227,32 +225,23 @@ export default function VoteForm({
           {deadline && <Countdown target={deadline} prefix="Fecha em" className="mt-1 text-sm text-muted" />}
         </header>
 
-        <div className="grid items-center gap-8 md:grid-cols-2">
-          {/* Mockup — à direita em ecrã largo */}
-          <figure className="flex flex-col items-center gap-3 md:order-last">
+        <div className="grid items-center gap-8 lg:grid-cols-2">
+          {/* Mockup — por cima em telemóvel e tablet, à direita em ecrã largo */}
+          <figure className="flex flex-col items-center gap-3 lg:order-last">
             <div
-              key={previewKey}
-              className="relative aspect-square w-full max-w-sm animate-fade-in overflow-hidden rounded-2xl bg-surface"
-              style={mockup?.background ? { backgroundColor: mockup.background } : undefined}
+              key={viewKey}
+              className="relative aspect-[4/3] w-full max-w-md animate-fade-in overflow-hidden rounded-2xl bg-surface"
+              style={view.front?.background ? { backgroundColor: view.front.background } : undefined}
             >
-              {mockup ? (
-                // A imagem é posicionada (e ampliada, na frente/costas) dentro da caixa quadrada.
-                <div
-                  className="absolute transition-all duration-500 ease-out"
-                  style={{
-                    left: `${imageBox!.left}%`,
-                    top: `${imageBox!.top}%`,
-                    width: `${imageBox!.width}%`,
-                    height: `${imageBox!.height}%`,
-                  }}
-                >
-                  <Image
-                    src={mockup.src}
-                    alt={mockupAlt}
-                    fill
+              {shownImages.length > 0 ? (
+                // Frente e costas lado a lado ("Ambos"), ou só uma delas, centradas na caixa.
+                <div className="absolute inset-0 p-[6%]">
+                  <MockupImages
+                    images={shownImages}
                     preload
-                    sizes="(min-width: 768px) 768px, 200vw"
-                    className="object-fill"
+                    sizes={`(min-width: 1024px) ${shownImages.length > 1 ? 224 : 448}px, ${
+                      shownImages.length > 1 ? 50 : 100
+                    }vw`}
                   />
                 </div>
               ) : (
@@ -260,7 +249,7 @@ export default function VoteForm({
                   <SweatSilhouette hex={previewColor.hex} />
                 </div>
               )}
-              {mockup && (
+              {shownImages.length > 0 && (
                 <button
                   type="button"
                   onClick={() => setZoomed(true)}
@@ -269,18 +258,11 @@ export default function VoteForm({
                 />
               )}
             </div>
-            {zoomed && mockup && (
-              <MockupZoom
-                src={mockup.src}
-                alt={mockupAlt}
-                aspect={mockup.aspect}
-                side={side}
-                background={mockup.background}
-                onClose={closeZoom}
-              />
+            {zoomed && shownImages.length > 0 && (
+              <MockupZoom images={shownImages} background={view.front?.background} onClose={closeZoom} />
             )}
             <div className="flex flex-wrap items-center justify-center gap-2">
-              {mockup && (
+              {hasMockup && (
                 <div role="group" aria-label="Parte da sweat a mostrar" className="flex rounded-lg border border-line bg-background p-0.5 text-xs font-medium">
                   {(
                     [
@@ -307,7 +289,11 @@ export default function VoteForm({
               <button
                 type="button"
                 aria-pressed={finalist}
-                onClick={() => setFinalist((f) => !f)}
+                onClick={() => {
+                  // A versão finalista só muda as costas: se estiver na frente, passa para as costas.
+                  if (!finalist && side === "front") setSide("back");
+                  setFinalist(!finalist);
+                }}
                 className={`h-8 rounded-lg border px-3 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent-light ${
                   finalist
                     ? "border-accent bg-accent text-white"
@@ -318,19 +304,22 @@ export default function VoteForm({
               </button>
             </div>
             {/* Só aparece para avisar de ficheiros em falta em public/mockups. */}
-            {(!mockup || finalistMissing) && (
+            {view.missing.length > 0 && (
               <figcaption className="text-center text-xs text-muted opacity-70">
-                {!mockup && <span className="block">mockup em falta: {previewKey}.png</span>}
-                {finalistMissing && <span className="block">versão finalista em falta: {finalistKey}.png</span>}
+                {view.missing.map((key) => (
+                  <span key={key} className="block">
+                    mockup em falta: {key}.png
+                  </span>
+                ))}
               </figcaption>
             )}
           </figure>
 
-          {/* Escolhas — à esquerda em ecrã largo */}
-          <div className="flex flex-col gap-6">
+          {/* Escolhas — centradas em telemóvel e tablet, à esquerda em ecrã largo */}
+          <div className="mx-auto flex w-full max-w-sm flex-col gap-6 text-center lg:mx-0 lg:max-w-none lg:text-left">
             <fieldset>
-              <legend className="mb-2 text-xs font-medium uppercase tracking-wide text-muted">Cor</legend>
-              <div className="flex items-center gap-3">
+              <legend className="mb-2 w-full text-xs font-medium uppercase tracking-wide text-muted">Cor</legend>
+              <div className="flex flex-wrap items-center justify-center gap-3 lg:justify-start">
                 {COLOR_OPTIONS.map((c) => {
                   const selected = c.id === colorId;
                   return (
@@ -348,12 +337,12 @@ export default function VoteForm({
                     />
                   );
                 })}
-                <span className="ml-1 text-sm">{color?.name}</span>
+                <span className="basis-full text-sm lg:ml-1 lg:basis-auto">{color?.name}</span>
               </div>
             </fieldset>
 
             <fieldset>
-              <legend className="mb-2 text-xs font-medium uppercase tracking-wide text-muted">Design</legend>
+              <legend className="mb-2 w-full text-xs font-medium uppercase tracking-wide text-muted">Design</legend>
               <div className="grid grid-cols-3 gap-2">
                 {DESIGN_OPTIONS.map((d) => {
                   const selected = d.id === designId;

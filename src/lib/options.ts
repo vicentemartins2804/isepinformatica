@@ -21,10 +21,14 @@ export const DESIGN_OPTIONS: DesignOption[] = [
   { id: "design-3", name: "Design 3" },
 ];
 
-/** Sufixo dos mockups da versão finalista (só muda a imagem, não o voto). */
-export const FINALIST_SUFFIX = "-finalista";
+/** Parte da sweat em cada ficheiro de mockup. */
+export type MockupPart = "frente" | "costas";
 
-/** Nome base do ficheiro do mockup em public/mockups (sem extensão). */
-export function mockupKey(designId: string, colorId: string, finalist = false) {
-  return `${designId}-${colorId}${finalist ? FINALIST_SUFFIX : ""}`;
+/**
+ * Nome base do ficheiro do mockup em public/mockups (sem extensão), por exemplo
+ * "design-1-verde-frente" ou, na versão finalista, "design-1-verde-finalista-costas".
+ * A versão finalista só muda a imagem, não o voto.
+ */
+export function mockupKey(designId: string, colorId: string, part: MockupPart, finalist = false) {
+  return `${designId}-${colorId}${finalist ? "-finalista" : ""}-${part}`;
 }

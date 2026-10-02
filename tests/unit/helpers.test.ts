@@ -3,7 +3,7 @@ import { MESSAGE_MAX, parseContactForm } from "@/lib/contact";
 import { csvField, toCsv } from "@/lib/csv";
 import { formatRemaining } from "@/lib/countdown";
 import { mockupKey } from "@/lib/options";
-import { mockupImageBox } from "@/lib/mockup-view";
+import { imagesForSide, resolveMockupView, type MockupImage } from "@/lib/mockup-view";
 import { safeRedirectTarget } from "@/lib/redirect";
 import { fillHours, HOUR_MS } from "@/lib/timeline";
 
@@ -71,28 +71,6 @@ describe("fillHours (gráfico de votos por hora)", () => {
   });
 });
 
-describe("mockupImageBox (ver frente e costas)", () => {
-  it("'ambos' encaixa a imagem inteira, como object-fit: contain", () => {
-    expect(mockupImageBox(2, "both")).toEqual({ left: 0, top: 25, width: 100, height: 50 });
-  });
-
-  it("'frente' mostra a metade esquerda centrada", () => {
-    // Imagem 1,2:1 → cada metade é 0,6:1 e ocupa a altura toda.
-    const box = mockupImageBox(1.2, "front");
-    expect(box.height).toBe(100);
-    expect(box.width).toBeCloseTo(120);
-    expect(box.left).toBeCloseTo(20); // (100 - 60) / 2
-  });
-
-  it("'costas' mostra a metade direita centrada", () => {
-    expect(mockupImageBox(1.2, "back").left).toBeCloseTo(-40); // 20 - 60
-  });
-
-  it("metades mais largas do que altas ocupam a largura toda", () => {
-    expect(mockupImageBox(4, "back")).toEqual({ left: -100, top: 25, width: 200, height: 50 });
-  });
-});
-
 describe("parseContactForm (formulário de contacto)", () => {
   const valid = { name: " Ana ", email: "ana@isep.ipp.pt", topic: "rgpd", message: " Quero apagar os meus dados. " };
 
@@ -141,8 +119,51 @@ describe("formatRemaining (contagem decrescente)", () => {
 });
 
 describe("mockupKey (nome do ficheiro do mockup)", () => {
-  it("versão normal e versão finalista", () => {
-    expect(mockupKey("design-1", "verde")).toBe("design-1-verde");
-    expect(mockupKey("design-1", "verde", true)).toBe("design-1-verde-finalista");
+  it("frente, costas e costas da versão finalista", () => {
+    expect(mockupKey("design-1", "verde", "frente")).toBe("design-1-verde-frente");
+    expect(mockupKey("design-1", "verde", "costas")).toBe("design-1-verde-costas");
+    expect(mockupKey("design-1", "verde", "costas", true)).toBe("design-1-verde-finalista-costas");
+  });
+});
+
+describe("resolveMockupView (imagens a mostrar)", () => {
+  const img = (src: string): MockupImage => ({
+    src,
+    aspect: 0.8,
+    background: "",
+    crop: { left: 0, top: 0, width: 1, height: 1 },
+  });
+  const all = {
+    "design-1-verde-frente": img("frente"),
+    "design-1-verde-costas": img("costas"),
+    "design-1-verde-finalista-costas": img("finalista"),
+  };
+
+  it("mostra a frente e as costas, por esta ordem", () => {
+    const view = resolveMockupView(all, "design-1", "verde", false);
+    expect(imagesForSide(view, "both").map((i) => i.src)).toEqual(["frente", "costas"]);
+    expect(imagesForSide(view, "front").map((i) => i.src)).toEqual(["frente"]);
+    expect(view.missing).toEqual([]);
+  });
+
+  it("a versão finalista só troca as costas", () => {
+    const view = resolveMockupView(all, "design-1", "verde", true);
+    expect(imagesForSide(view, "both").map((i) => i.src)).toEqual(["frente", "finalista"]);
+    expect(view.finalistShown).toBe(true);
+  });
+
+  it("sem a imagem finalista, mostra as costas normais e avisa", () => {
+    const semFinalista = { "design-1-verde-frente": all["design-1-verde-frente"], "design-1-verde-costas": all["design-1-verde-costas"] };
+    const view = resolveMockupView(semFinalista, "design-1", "verde", true);
+    expect(view.back?.src).toBe("costas");
+    expect(view.finalistShown).toBe(false);
+    expect(view.missing).toEqual(["design-1-verde-finalista-costas"]);
+  });
+
+  it("lista os ficheiros em falta e mostra só o que existe", () => {
+    const view = resolveMockupView({ "design-2-bordo-costas": img("costas") }, "design-2", "bordo", false);
+    expect(view.missing).toEqual(["design-2-bordo-frente"]);
+    expect(imagesForSide(view, "both").map((i) => i.src)).toEqual(["costas"]);
+    expect(imagesForSide(view, "front")).toEqual([]);
   });
 });
